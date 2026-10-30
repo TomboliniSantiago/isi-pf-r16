@@ -1,0 +1,31 @@
+# Secretos y entornos locales
+.env
+*.env
+!*.env.example
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+
+# Scripts SQL (esquema y migraciones): se distribuyen fuera del repositorio
+*.sql
