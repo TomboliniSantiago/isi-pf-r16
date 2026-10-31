@@ -13,8 +13,6 @@ Sistema contable con OCR/NLP y validación con ARCA. Alcance y roadmap: [docs/al
 - **CUU-015 Iniciar sesión**: login con correo corporativo y contraseña (hash bcrypt), token JWT, bloqueo temporal tras 3 intentos fallidos consecutivos, cambio obligatorio de la contraseña temporal, cierre de sesión. 2FA y recuperación autónoma de contraseña quedan fuera de esta etapa (ver alcance).
 - **CUU-018 Gestionar usuarios**: alta (con contraseña temporal generada por el sistema), modificación, consulta con filtros, baja lógica, reactivación y restablecimiento de contraseña. Solo el perfil Administrador accede.
 
-> **Desarrollo:** `/api/auth/dev/usuarios` expone el CRUD de usuarios **sin inicio de sesión** (`GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` como baja lógica, `POST /{id}/reactivar`). Aplica las mismas validaciones y queda auditado con usuario `sin_sesion`. Cualquiera que llegue a la API puede usarlo: quitar `app/routers/dev_usuarios.py` antes de exponer la aplicación fuera del entorno local.
-
 Perfiles: `ADMINISTRADOR`, `CONTADOR`, `ADMINISTRATIVO`, `CONSULTA`. Los permisos se validan en el backend en cada request (una baja o un cambio de perfil tiene efecto inmediato).
 
 Auditoría (`AUDITORIA_LOG`): `LOGIN_OK`, `LOGIN_FALLIDO`, `BLOQUEO`, `LOGOUT`, `CAMBIO_PASSWORD`, `ALTA`, `MODIFICACION`, `BAJA`, `REACTIVACION`, `RESTABLECER_PASSWORD`, con usuario, fecha (UTC), IP de origen y valores anteriores/nuevos. Nunca se registran contraseñas ni hashes.

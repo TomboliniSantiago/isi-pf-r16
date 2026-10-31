@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { mensajeDeError } from "../api/client";
-import { usuariosApi, type FiltrosUsuarios, type GestionUsuariosApi } from "../api/usuarios";
+import { usuariosApi, type FiltrosUsuarios } from "../api/usuarios";
 import { useAuth } from "../auth/AuthContext";
 import { Alerta } from "../components/Alerta";
 import { Modal } from "../components/Modal";
@@ -36,7 +36,7 @@ const CONFIRMACIONES: Record<Accion, { titulo: string; texto: string; boton: str
   },
 };
 
-export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }) {
+export function UsuariosPage() {
   const { usuario: actual } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -63,7 +63,7 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
     };
     setCargando(true);
     try {
-      const resultado = await api.listar(filtros);
+      const resultado = await usuariosApi.listar(filtros);
       if (consulta === ultimaConsulta.current) {
         setUsuarios(resultado);
         setErrorCarga(null);
@@ -73,7 +73,7 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
     } finally {
       if (consulta === ultimaConsulta.current) setCargando(false);
     }
-  }, [api, buscar, estado, rol]);
+  }, [buscar, estado, rol]);
 
   useEffect(() => {
     void cargar();
@@ -174,15 +174,13 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
                         </button>
                         {u.activo ? (
                           <>
-                            {api.restablecerPassword && (
-                              <button
-                                type="button"
-                                className="boton-enlace"
-                                onClick={() => setDialogo({ tipo: "confirmar", accion: "restablecer", usuario: u })}
-                              >
-                                Restablecer contraseña
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              className="boton-enlace"
+                              onClick={() => setDialogo({ tipo: "confirmar", accion: "restablecer", usuario: u })}
+                            >
+                              Restablecer contraseña
+                            </button>
                             {!esActual && (
                               <button
                                 type="button"
@@ -222,7 +220,6 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
 
       {dialogo?.tipo === "formulario" && (
         <FormularioUsuario
-          api={api}
           usuario={dialogo.usuario}
           esActual={dialogo.usuario?.id_usuario === actual?.id_usuario}
           onCerrar={cerrarDialogo}
@@ -244,7 +241,6 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
 
       {dialogo?.tipo === "confirmar" && (
         <ConfirmarAccion
-          api={api}
           accion={dialogo.accion}
           usuario={dialogo.usuario}
           onCerrar={cerrarDialogo}
@@ -288,7 +284,6 @@ function EstadoUsuario({ usuario }: { usuario: Usuario }) {
 }
 
 interface FormularioProps {
-  api: GestionUsuariosApi;
   usuario: Usuario | null;
   esActual: boolean;
   onCerrar: () => void;
@@ -296,7 +291,7 @@ interface FormularioProps {
   onModificado: () => void;
 }
 
-function FormularioUsuario({ api, usuario, esActual, onCerrar, onCreado, onModificado }: FormularioProps) {
+function FormularioUsuario({ usuario, esActual, onCerrar, onCreado, onModificado }: FormularioProps) {
   const [datos, setDatos] = useState<UsuarioDatos>({
     nombre_usuario: usuario?.nombre_usuario ?? "",
     email: usuario?.email ?? "",
@@ -311,10 +306,10 @@ function FormularioUsuario({ api, usuario, esActual, onCerrar, onCreado, onModif
     setEnviando(true);
     try {
       if (usuario) {
-        await api.modificar(usuario.id_usuario, datos);
+        await usuariosApi.modificar(usuario.id_usuario, datos);
         onModificado();
       } else {
-        const r = await api.crear(datos);
+        const r = await usuariosApi.crear(datos);
         onCreado(r.usuario, r.password_temporal);
       }
     } catch (err) {
@@ -387,14 +382,13 @@ function FormularioUsuario({ api, usuario, esActual, onCerrar, onCreado, onModif
 }
 
 interface ConfirmarProps {
-  api: GestionUsuariosApi;
   accion: Accion;
   usuario: Usuario;
   onCerrar: () => void;
   onListo: (mensaje: string, password?: string) => void;
 }
 
-function ConfirmarAccion({ api, accion, usuario, onCerrar, onListo }: ConfirmarProps) {
+function ConfirmarAccion({ accion, usuario, onCerrar, onListo }: ConfirmarProps) {
   const config = CONFIRMACIONES[accion];
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -404,13 +398,13 @@ function ConfirmarAccion({ api, accion, usuario, onCerrar, onListo }: ConfirmarP
     setEnviando(true);
     try {
       if (accion === "baja") {
-        await api.darDeBaja(usuario.id_usuario);
+        await usuariosApi.darDeBaja(usuario.id_usuario);
         onListo(`El usuario ${usuario.nombre_usuario} fue dado de baja correctamente.`);
       } else if (accion === "reactivar") {
-        await api.reactivar(usuario.id_usuario);
+        await usuariosApi.reactivar(usuario.id_usuario);
         onListo(`El usuario ${usuario.nombre_usuario} fue reactivado correctamente.`);
-      } else if (api.restablecerPassword) {
-        const r = await api.restablecerPassword(usuario.id_usuario);
+      } else {
+        const r = await usuariosApi.restablecerPassword(usuario.id_usuario);
         onListo("", r.password_temporal);
       }
     } catch (err) {

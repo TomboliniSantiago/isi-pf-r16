@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { mensajeDeError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Alerta } from "../components/Alerta";
@@ -77,9 +77,6 @@ export function LoginPage() {
             {enviando ? "Verificando…" : "Ingresar"}
           </button>
           <p className="texto-ayuda">¿Olvidó su contraseña? Solicite el restablecimiento al administrador del sistema.</p>
-          <p className="texto-ayuda login-dev">
-            <Link to="/dev/usuarios">Gestionar usuarios sin iniciar sesión (desarrollo)</Link>
-          </p>
         </form>
       </section>
     </div>

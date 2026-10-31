@@ -604,23 +604,6 @@ a {
   background: var(--ambar-fondo);
   color: var(--ambar);
 }
-.etiqueta-dev {
-  background: var(--ambar-fondo);
-  color: var(--ambar);
-  border: 1px solid #f1dca4;
-}
-
-/* ---------- Modo desarrollo (sin sesión) ---------- */
-.contenido-sin-menu {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-.login-dev {
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--borde);
-  text-align: center;
-}
 
 /* ---------- Modal ---------- */
 .modal-fondo {
