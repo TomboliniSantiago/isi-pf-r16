@@ -37,8 +37,7 @@ class Settings(BaseSettings):
         odbc = (
             f"DRIVER={{{self.db_driver}}};SERVER=tcp:{self.db_host},{self.db_port};"
             f"DATABASE={self.db_name};UID={self.db_user};PWD={pwd};Encrypt=yes;"
-            f"TrustServerCertificate={'yes' if self.db_trust_cert else 'no'};"
-            f"Connection Timeout={self.db_connect_timeout}"
+            f"TrustServerCertificate={'yes' if self.db_trust_cert else 'no'}"
         )
         return "mssql+pyodbc:///?odbc_connect=" + quote_plus(odbc)
 
