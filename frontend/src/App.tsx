@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { RutaProtegida } from "./auth/RutaProtegida";
 import { Layout } from "./components/Layout";
 import { CambiarPasswordPage } from "./pages/CambiarPasswordPage";
+import { DevUsuariosPage } from "./pages/DevUsuariosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
@@ -14,6 +15,7 @@ export function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/dev/usuarios" element={<DevUsuariosPage />} />
           <Route
             path="/cambiar-password"
             element={
