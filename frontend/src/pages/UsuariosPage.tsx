@@ -152,7 +152,7 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
             </thead>
             <tbody>
               {usuarios.map((u) => {
-                const esActual = u.id_usuario === actual?.id_usuario;
+                const esActual = esUsuarioActual(u, actual);
                 return (
                   <tr key={u.id_usuario}>
                     <td>
@@ -224,7 +224,7 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
         <FormularioUsuario
           api={api}
           usuario={dialogo.usuario}
-          esActual={dialogo.usuario?.id_usuario === actual?.id_usuario}
+          esActual={esUsuarioActual(dialogo.usuario, actual)}
           onCerrar={cerrarDialogo}
           onCreado={(u, password) =>
             setDialogo({
@@ -278,6 +278,11 @@ export function UsuariosPage({ api = usuariosApi }: { api?: GestionUsuariosApi }
       )}
     </>
   );
+}
+
+/** Si el usuario es el de la sesión. Sin sesión (modo dev) o en un alta nunca lo es. */
+function esUsuarioActual(usuario: Usuario | null, actual: Usuario | null): boolean {
+  return usuario !== null && actual !== null && usuario.id_usuario === actual.id_usuario;
 }
 
 function EstadoUsuario({ usuario }: { usuario: Usuario }) {

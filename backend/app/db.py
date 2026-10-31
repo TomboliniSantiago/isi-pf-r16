@@ -13,7 +13,11 @@ class Base(DeclarativeBase):
 
 @lru_cache
 def get_engine() -> Engine:
-    return create_engine(get_settings().sqlalchemy_url, pool_pre_ping=True, pool_recycle=1800)
+    settings = get_settings()
+    url = settings.sqlalchemy_url
+    # El timeout de login de ODBC se pasa a pyodbc.connect(timeout=...): no es una clave válida de la cadena.
+    connect_args = {"timeout": settings.db_connect_timeout} if url.startswith("mssql") else {}
+    return create_engine(url, pool_pre_ping=True, pool_recycle=1800, connect_args=connect_args)
 
 
 @lru_cache

@@ -21,6 +21,8 @@ Auditoría (`AUDITORIA_LOG`): `LOGIN_OK`, `LOGIN_FALLIDO`, `BLOQUEO`, `LOGOUT`, 
 
 ## Puesta en marcha
 
+**Inicio rápido (Windows):** con los pasos 1 a 3 hechos una vez, doble clic en `iniciar.bat` levanta el backend y el frontend en dos ventanas y abre el navegador en http://localhost:5173. Para detenerlos, cerrar esas ventanas.
+
 ### 1. Base de datos
 
 Los scripts SQL (esquema base y migraciones) no se versionan en este repositorio. La base debe tener aplicada la migración `001_seguridad_usuarios.sql`, que agrega a `USUARIO` las columnas `intentos_fallidos`, `bloqueado_hasta`, `debe_cambiar_password`, `fecha_alta` y `ultimo_acceso`, índices únicos sobre `email` y `nombre_usuario`, y la columna `origen` a `AUDITORIA_LOG`.
