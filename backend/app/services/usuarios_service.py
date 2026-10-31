@@ -12,6 +12,8 @@ from app.security import generar_password_temporal, hash_password
 from app.tiempo import ahora
 
 TABLA = "USUARIO"
+# Actor que se audita cuando la operación llega por los endpoints sin sesión (routers/dev_usuarios.py).
+ACTOR_SIN_SESION = "sin_sesion"
 
 
 def listar(db: Session, buscar: str | None, activo: bool | None, rol: Rol | None) -> list[Usuario]:
@@ -35,7 +37,7 @@ def obtener(db: Session, id_usuario: int) -> Usuario:
     return usuario
 
 
-def crear(db: Session, datos: UsuarioIn, actor: Usuario, origen: str | None) -> tuple[Usuario, str]:
+def crear(db: Session, datos: UsuarioIn, actor: Usuario | None, origen: str | None) -> tuple[Usuario, str]:
     email = datos.email.lower()
     _verificar_duplicados(db, datos.nombre_usuario, email)
     password_temporal = generar_password_temporal()
@@ -56,7 +58,7 @@ def crear(db: Session, datos: UsuarioIn, actor: Usuario, origen: str | None) -> 
         accion="ALTA",
         tabla=TABLA,
         id_registro=usuario.id_usuario,
-        actor=actor.email,
+        actor=_actor(actor),
         origen=origen,
         despues=auditoria.instantanea_usuario(usuario),
     )
@@ -64,18 +66,13 @@ def crear(db: Session, datos: UsuarioIn, actor: Usuario, origen: str | None) -> 
     return usuario, password_temporal
 
 
-def modificar(db: Session, id_usuario: int, datos: UsuarioIn, actor: Usuario, origen: str | None) -> Usuario:
+def modificar(db: Session, id_usuario: int, datos: UsuarioIn, actor: Usuario | None, origen: str | None) -> Usuario:
     usuario = obtener(db, id_usuario)
     email = datos.email.lower()
-    if usuario.id_usuario == actor.id_usuario and datos.nivel_acceso != usuario.nivel_acceso:
+    if _es_el_mismo(usuario, actor) and datos.nivel_acceso != usuario.nivel_acceso:
         raise ErrorNegocio(409, "No puede modificar su propio nivel de acceso.")
-    if (
-        usuario.nivel_acceso == Rol.ADMINISTRADOR
-        and usuario.esta_activo
-        and datos.nivel_acceso != Rol.ADMINISTRADOR
-        and _administradores_activos(db) <= 1
-    ):
-        raise ErrorNegocio(409, "Debe existir al menos un administrador activo.")
+    if datos.nivel_acceso != Rol.ADMINISTRADOR:
+        _verificar_no_es_ultimo_admin(db, usuario)
     _verificar_duplicados(db, datos.nombre_usuario, email, excluir=usuario.id_usuario)
 
     antes = auditoria.instantanea_usuario(usuario)
@@ -89,7 +86,7 @@ def modificar(db: Session, id_usuario: int, datos: UsuarioIn, actor: Usuario, or
             accion="MODIFICACION",
             tabla=TABLA,
             id_registro=usuario.id_usuario,
-            actor=actor.email,
+            actor=_actor(actor),
             origen=origen,
             antes=antes,
             despues=despues,
@@ -98,12 +95,13 @@ def modificar(db: Session, id_usuario: int, datos: UsuarioIn, actor: Usuario, or
     return usuario
 
 
-def dar_de_baja(db: Session, id_usuario: int, actor: Usuario, origen: str | None) -> Usuario:
+def dar_de_baja(db: Session, id_usuario: int, actor: Usuario | None, origen: str | None) -> Usuario:
     usuario = obtener(db, id_usuario)
-    if usuario.id_usuario == actor.id_usuario:
+    if _es_el_mismo(usuario, actor):
         raise ErrorNegocio(409, "No puede dar de baja su propio usuario.")
     if not usuario.esta_activo:
         raise ErrorNegocio(409, "El usuario ya se encuentra dado de baja.")
+    _verificar_no_es_ultimo_admin(db, usuario)
     antes = auditoria.instantanea_usuario(usuario)
     usuario.activo = INACTIVO
     auditoria.registrar(
@@ -111,7 +109,7 @@ def dar_de_baja(db: Session, id_usuario: int, actor: Usuario, origen: str | None
         accion="BAJA",
         tabla=TABLA,
         id_registro=usuario.id_usuario,
-        actor=actor.email,
+        actor=_actor(actor),
         origen=origen,
         antes=antes,
         despues=auditoria.instantanea_usuario(usuario),
@@ -120,7 +118,7 @@ def dar_de_baja(db: Session, id_usuario: int, actor: Usuario, origen: str | None
     return usuario
 
 
-def reactivar(db: Session, id_usuario: int, actor: Usuario, origen: str | None) -> Usuario:
+def reactivar(db: Session, id_usuario: int, actor: Usuario | None, origen: str | None) -> Usuario:
     usuario = obtener(db, id_usuario)
     if usuario.esta_activo:
         raise ErrorNegocio(409, "El usuario ya se encuentra activo.")
@@ -133,7 +131,7 @@ def reactivar(db: Session, id_usuario: int, actor: Usuario, origen: str | None) 
         accion="REACTIVACION",
         tabla=TABLA,
         id_registro=usuario.id_usuario,
-        actor=actor.email,
+        actor=_actor(actor),
         origen=origen,
         antes=antes,
         despues=auditoria.instantanea_usuario(usuario),
@@ -142,7 +140,9 @@ def reactivar(db: Session, id_usuario: int, actor: Usuario, origen: str | None) 
     return usuario
 
 
-def restablecer_password(db: Session, id_usuario: int, actor: Usuario, origen: str | None) -> tuple[Usuario, str]:
+def restablecer_password(
+    db: Session, id_usuario: int, actor: Usuario | None, origen: str | None
+) -> tuple[Usuario, str]:
     """Genera una nueva contraseña temporal y desbloquea la cuenta."""
     usuario = obtener(db, id_usuario)
     if not usuario.esta_activo:
@@ -157,7 +157,7 @@ def restablecer_password(db: Session, id_usuario: int, actor: Usuario, origen: s
         accion="RESTABLECER_PASSWORD",
         tabla=TABLA,
         id_registro=usuario.id_usuario,
-        actor=actor.email,
+        actor=_actor(actor),
         origen=origen,
         despues={"debe_cambiar_password": True},
     )
@@ -177,6 +177,20 @@ def _verificar_duplicados(db: Session, nombre_usuario: str, email: str, excluir:
     if (existente.email or "").lower() == email:
         raise ErrorNegocio(409, f"Ya existe un usuario con el correo {email}.")
     raise ErrorNegocio(409, f"Ya existe un usuario con el nombre de usuario {nombre_usuario}.")
+
+
+def _actor(actor: Usuario | None) -> str | None:
+    return actor.email if actor else ACTOR_SIN_SESION
+
+
+def _es_el_mismo(usuario: Usuario, actor: Usuario | None) -> bool:
+    return actor is not None and usuario.id_usuario == actor.id_usuario
+
+
+def _verificar_no_es_ultimo_admin(db: Session, usuario: Usuario) -> None:
+    """Impide dejar el sistema sin administradores activos (cambio de perfil o baja)."""
+    if usuario.nivel_acceso == Rol.ADMINISTRADOR and usuario.esta_activo and _administradores_activos(db) <= 1:
+        raise ErrorNegocio(409, "Debe existir al menos un administrador activo.")
 
 
 def _administradores_activos(db: Session) -> int:
