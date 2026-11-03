@@ -26,6 +26,11 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Salidas locales
+scripts/out/
+db/
+docs/
 
-# Scripts SQL (esquema y migraciones): se distribuyen fuera del repositorio
-*.sql
+#Bitacora de cambios
+BITACORA.md
+

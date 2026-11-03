@@ -13,9 +13,18 @@ def _login(client, email, password=PASSWORD):
     return client.post("/api/auth/login", json={"email": email, "password": password})
 
 
-def test_login_exitoso(client, db, crear_usuario):
+def test_login_exitoso_en_dos_pasos(client, db, crear_usuario, correos):
     usuario = crear_usuario("conta@eugenia.com.ar")
     r = _login(client, "Conta@Eugenia.com.ar")  # el correo no distingue mayúsculas
+    assert r.status_code == 200
+    desafio = r.json()
+    assert "access_token" not in desafio  # la contraseña sola no concede acceso
+    assert desafio["destino"] == "c***@eugenia.com.ar"
+    assert correos.enviados[-1][0] == "conta@eugenia.com.ar"
+    assert len(auditorias(db, "LOGIN_OK")) == 0
+
+    codigo = correos.ultimo_codigo()
+    r = client.post("/api/auth/login/verificar", json={"desafio": desafio["desafio"], "codigo": codigo})
     assert r.status_code == 200
     cuerpo = r.json()
     assert cuerpo["token_type"] == "bearer"

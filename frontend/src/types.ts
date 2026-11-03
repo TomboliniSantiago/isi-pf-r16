@@ -29,6 +29,14 @@ export interface UsuarioDatos {
   nivel_acceso: Rol;
 }
 
+/** Código de verificación enviado por correo; `desafio` se devuelve junto con el código. */
+export interface Desafio {
+  desafio: string;
+  destino: string;
+  expira_en: number;
+  reenvio_en: number;
+}
+
 export interface LoginRespuesta {
   access_token: string;
   token_type: string;

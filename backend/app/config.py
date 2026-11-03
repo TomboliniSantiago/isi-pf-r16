@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,6 +20,9 @@ class Settings(BaseSettings):
     db_trust_cert: bool = False
     # Azure SQL serverless puede tardar en reanudarse tras una pausa automática.
     db_connect_timeout: int = 60
+    # Reintentos mientras la base serverless se reanuda (error 40613): 6 x 10 s = hasta 1 minuto.
+    db_reanudacion_intentos: int = 6
+    db_reanudacion_espera_segundos: float = 10
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"
@@ -27,6 +31,20 @@ class Settings(BaseSettings):
 
     login_max_intentos: int = 3
     login_bloqueo_minutos: int = 15
+
+    # Códigos de verificación por correo (2FA, recupero y cambio de contraseña).
+    codigo_vigencia_minutos: int = 10
+    codigo_max_intentos: int = 5
+    codigo_reenvio_segundos: int = 60
+
+    # Envío de correo: "consola" escribe el correo en el log (desarrollo); "smtp" lo envía.
+    correo_modo: Literal["consola", "smtp"] = "consola"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_usuario: str = ""
+    smtp_password: str = ""
+    smtp_remitente: str = ""
+    smtp_seguridad: Literal["starttls", "ssl", "ninguna"] = "starttls"
 
     @property
     def sqlalchemy_url(self) -> str:

@@ -1,62 +1,41 @@
 # EugenIA (ISI-PF-R16)
 
-Sistema contable con OCR/NLP y validación con ARCA. Alcance y roadmap: [docs/alcance_70_y_roadmap_eugenia.md](docs/alcance_70_y_roadmap_eugenia.md).
+Backend FastAPI (`backend/`) y frontend React + Vite (`frontend/`) sobre SQL Server.
 
-| Carpeta | Contenido |
-|---|---|
-| `backend/` | API FastAPI + SQLAlchemy sobre SQL Server (Azure SQL) |
-| `frontend/` | SPA React + Vite + TypeScript |
-| `docs/` | Documentación funcional del proyecto |
+## Requisitos
 
-## Casos de uso implementados
+- Python 3.12
+- [ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
+- Node 20
+- Base de datos con las migraciones `001_seguridad_usuarios.sql` y `002_codigos_verificacion.sql` aplicadas (se comparten fuera del repositorio)
 
-- **CUU-015 Iniciar sesión**: login con correo corporativo y contraseña (hash bcrypt), token JWT, bloqueo temporal tras 3 intentos fallidos consecutivos, cambio obligatorio de la contraseña temporal, cierre de sesión. 2FA y recuperación autónoma de contraseña quedan fuera de esta etapa (ver alcance).
-- **CUU-018 Gestionar usuarios**: alta (con contraseña temporal generada por el sistema), modificación, consulta con filtros, baja lógica, reactivación y restablecimiento de contraseña. Solo el perfil Administrador accede.
-
-> **Desarrollo:** `/api/auth/dev/usuarios` expone el CRUD de usuarios **sin inicio de sesión** (`GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` como baja lógica, `POST /{id}/reactivar`). Aplica las mismas validaciones y queda auditado con usuario `sin_sesion`. Cualquiera que llegue a la API puede usarlo: quitar `app/routers/dev_usuarios.py` antes de exponer la aplicación fuera del entorno local.
-
-Perfiles: `ADMINISTRADOR`, `CONTADOR`, `ADMINISTRATIVO`, `CONSULTA`. Los permisos se validan en el backend en cada request (una baja o un cambio de perfil tiene efecto inmediato).
-
-Auditoría (`AUDITORIA_LOG`): `LOGIN_OK`, `LOGIN_FALLIDO`, `BLOQUEO`, `LOGOUT`, `CAMBIO_PASSWORD`, `ALTA`, `MODIFICACION`, `BAJA`, `REACTIVACION`, `RESTABLECER_PASSWORD`, con usuario, fecha (UTC), IP de origen y valores anteriores/nuevos. Nunca se registran contraseñas ni hashes.
-
-## Puesta en marcha
-
-**Inicio rápido (Windows):** con los pasos 1 a 3 hechos una vez, doble clic en `iniciar.bat` levanta el backend y el frontend en dos ventanas y abre el navegador en http://localhost:5173. Para detenerlos, cerrar esas ventanas.
-
-### 1. Base de datos
-
-Los scripts SQL (esquema base y migraciones) no se versionan en este repositorio. La base debe tener aplicada la migración `001_seguridad_usuarios.sql`, que agrega a `USUARIO` las columnas `intentos_fallidos`, `bloqueado_hasta`, `debe_cambiar_password`, `fecha_alta` y `ultimo_acceso`, índices únicos sobre `email` y `nombre_usuario`, y la columna `origen` a `AUDITORIA_LOG`.
-
-Convenciones: `USUARIO.activo` = `'S'`/`'N'`; `USUARIO.email` en minúsculas.
-
-### 2. Backend
-
-Requiere Python 3.12 y el [ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server).
+## Backend
 
 ```powershell
 cd backend
-copy .env.example .env                       # completar credenciales y JWT_SECRET
+copy .env.example .env      # completar base de datos y JWT_SECRET
 py -3.12 -m venv .venv
 .venv\Scripts\python -m pip install -r requirements-dev.txt
-
-.venv\Scripts\python -m app.cli crear-admin --email admin@empresa.com --nombre admin   # primer administrador
-.venv\Scripts\python -m uvicorn app.main:app --reload                                   # http://localhost:8000/docs
+.venv\Scripts\python -m app.cli crear-admin --email admin@empresa.com --nombre admin
 ```
 
-Pruebas y lint (usan SQLite en memoria, no tocan la base real):
+Con `CORREO_MODO=consola` los códigos de verificación aparecen en la consola del backend en lugar de enviarse por correo.
 
-```powershell
-.venv\Scripts\python -m pytest
-.venv\Scripts\python -m ruff check .
-```
-
-### 3. Frontend
-
-Requiere Node 20.
+## Frontend
 
 ```powershell
 cd frontend
 npm install
-npm run dev                   # http://localhost:5173 (redirige /api a localhost:8000)
-npm run build                 # typecheck + build de producción
+```
+
+## Ejecutar
+
+Doble clic en `iniciar.bat`: levanta backend (http://localhost:8000/docs) y frontend (http://localhost:5173). Al cerrar la ventana se detienen los dos.
+
+## Pruebas
+
+```powershell
+cd backend
+.venv\Scripts\python -m pytest
+.venv\Scripts\python -m ruff check .
 ```

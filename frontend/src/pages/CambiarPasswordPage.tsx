@@ -4,15 +4,10 @@ import { authApi } from "../api/auth";
 import { mensajeDeError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Alerta } from "../components/Alerta";
+import { IngresoCodigo } from "../components/IngresoCodigo";
 import { Marca } from "../components/Marca";
-
-// Misma política que valida el backend (app/security.py).
-const REGLAS: { texto: string; cumple: (p: string) => boolean }[] = [
-  { texto: "Al menos 8 caracteres", cumple: (p) => p.length >= 8 },
-  { texto: "Una letra mayúscula", cumple: (p) => /[A-ZÁÉÍÓÚÑ]/.test(p) },
-  { texto: "Una letra minúscula", cumple: (p) => /[a-záéíóúñ]/.test(p) },
-  { texto: "Un número", cumple: (p) => /\d/.test(p) },
-];
+import { ReglasPassword, cumplePolitica } from "../components/ReglasPassword";
+import type { Desafio } from "../types";
 
 export function CambiarPasswordPage() {
   const { usuario, actualizarUsuario, cerrarSesion } = useAuth();
@@ -20,12 +15,29 @@ export function CambiarPasswordPage() {
   const [actual, setActual] = useState("");
   const [nueva, setNueva] = useState("");
   const [confirmacion, setConfirmacion] = useState("");
+  const [desafio, setDesafio] = useState<Desafio | null>(null);
+  const [codigo, setCodigo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [solicitando, setSolicitando] = useState(false);
 
+  // El cambio obligatorio de la contraseña temporal no pide código: ya se validó uno al iniciar sesión.
   const obligatorio = usuario?.debe_cambiar_password ?? false;
-  const cumpleTodas = REGLAS.every((r) => r.cumple(nueva));
   const coinciden = nueva === confirmacion;
+  const codigoListo = obligatorio || (desafio !== null && codigo.length === 6);
+
+  async function solicitarCodigo() {
+    setError(null);
+    setSolicitando(true);
+    try {
+      setDesafio(await authApi.solicitarCodigoCambio());
+      setCodigo("");
+    } catch (err) {
+      setError(mensajeDeError(err));
+    } finally {
+      setSolicitando(false);
+    }
+  }
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
@@ -36,11 +48,13 @@ export function CambiarPasswordPage() {
     setError(null);
     setEnviando(true);
     try {
-      actualizarUsuario(await authApi.cambiarPassword(actual, nueva));
+      const actualizado = obligatorio
+        ? await authApi.cambiarPassword(actual, nueva)
+        : await authApi.cambiarPassword(actual, nueva, desafio?.desafio, codigo);
+      actualizarUsuario(actualizado);
       navigate("/", { replace: true, state: { aviso: "La contraseña se actualizó correctamente." } });
     } catch (err) {
       setError(mensajeDeError(err));
-    } finally {
       setEnviando(false);
     }
   }
@@ -57,9 +71,7 @@ export function CambiarPasswordPage() {
       </div>
       <form className="tarjeta tarjeta-angosta" onSubmit={enviar} noValidate>
         <h1>Cambiar contraseña</h1>
-        {obligatorio && (
-          <Alerta tipo="aviso">Debe reemplazar la contraseña temporal antes de continuar.</Alerta>
-        )}
+        {obligatorio && <Alerta tipo="aviso">Debe reemplazar la contraseña temporal antes de continuar.</Alerta>}
         {error && <Alerta tipo="error">{error}</Alerta>}
 
         <label className="campo">
@@ -76,13 +88,7 @@ export function CambiarPasswordPage() {
           <span>Nueva contraseña</span>
           <input type="password" autoComplete="new-password" value={nueva} onChange={(e) => setNueva(e.target.value)} />
         </label>
-        <ul className="reglas">
-          {REGLAS.map((r) => (
-            <li key={r.texto} className={r.cumple(nueva) ? "regla-ok" : undefined}>
-              {r.texto}
-            </li>
-          ))}
-        </ul>
+        <ReglasPassword password={nueva} />
         <label className="campo">
           <span>Confirmar nueva contraseña</span>
           <input
@@ -95,10 +101,35 @@ export function CambiarPasswordPage() {
           {confirmacion !== "" && !coinciden && <small className="campo-error">Las contraseñas no coinciden.</small>}
         </label>
 
+        {!obligatorio &&
+          (desafio === null ? (
+            <div className="bloque-codigo">
+              <p className="texto-secundario">Para confirmar el cambio le enviaremos un código a su correo.</p>
+              <button
+                type="button"
+                className="boton boton-secundario boton-bloque"
+                onClick={solicitarCodigo}
+                disabled={solicitando}
+              >
+                {solicitando ? "Enviando…" : "Enviar código a mi correo"}
+              </button>
+            </div>
+          ) : (
+            <div className="bloque-codigo">
+              <IngresoCodigo
+                desafio={desafio}
+                codigo={codigo}
+                onCodigo={setCodigo}
+                onReenviado={setDesafio}
+                onError={setError}
+              />
+            </div>
+          ))}
+
         <button
           type="submit"
           className="boton boton-primario boton-bloque"
-          disabled={enviando || !actual || !cumpleTodas || !coinciden}
+          disabled={enviando || !actual || !cumplePolitica(nueva) || !coinciden || !codigoListo}
         >
           {enviando ? "Guardando…" : "Guardar contraseña"}
         </button>

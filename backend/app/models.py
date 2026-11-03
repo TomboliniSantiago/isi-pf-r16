@@ -1,9 +1,9 @@
-"""Mapeo de las tablas existentes (esquema base + migración 001_seguridad_usuarios)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 y 002)."""
 
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, Integer, Unicode, UnicodeText
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Unicode, UnicodeText
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -37,6 +37,30 @@ class Usuario(Base):
     @property
     def esta_activo(self) -> bool:
         return self.activo == ACTIVO
+
+
+class Proposito(StrEnum):
+    LOGIN = "LOGIN"
+    RECUPERO_PASSWORD = "RECUPERO_PASSWORD"  # noqa: S105 (nombre del propósito, no una contraseña)
+    CAMBIO_PASSWORD = "CAMBIO_PASSWORD"  # noqa: S105
+
+
+class CodigoVerificacion(Base):
+    """Código de un solo uso enviado por correo (migración 002_codigos_verificacion)."""
+
+    __tablename__ = "CODIGO_VERIFICACION"
+
+    id_codigo: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_usuario: Mapped[int] = mapped_column(Integer, ForeignKey("USUARIO.id_usuario"))
+    proposito: Mapped[str] = mapped_column(Unicode(30))
+    desafio_hash: Mapped[str] = mapped_column(Unicode(64), unique=True)
+    codigo_hash: Mapped[str] = mapped_column(Unicode(64))
+    canal: Mapped[str] = mapped_column(Unicode(20))
+    destino: Mapped[str] = mapped_column(Unicode(255))
+    intentos: Mapped[int] = mapped_column(Integer, default=0)
+    fecha_creacion: Mapped[datetime] = mapped_column(DateTime)
+    expira: Mapped[datetime] = mapped_column(DateTime)
+    usado_en: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class AuditoriaLog(Base):
