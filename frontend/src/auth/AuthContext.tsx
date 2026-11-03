@@ -1,12 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authApi } from "../api/auth";
 import { onSesionExpirada, tokenStore } from "../api/client";
-import type { Usuario } from "../types";
+import type { Desafio, Usuario } from "../types";
 
 interface AuthContexto {
   usuario: Usuario | null;
   cargando: boolean;
-  iniciarSesion: (email: string, password: string) => Promise<Usuario>;
+  /** Paso 1 del login: devuelve el desafío del código enviado por correo. */
+  iniciarSesion: (email: string, password: string) => Promise<Desafio>;
+  /** Paso 2 del login: valida el código e inicia la sesión. */
+  verificarCodigo: (desafio: string, codigo: string) => Promise<Usuario>;
   cerrarSesion: () => Promise<void>;
   actualizarUsuario: (usuario: Usuario) => void;
 }
@@ -33,8 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setCargando(false));
   }, []);
 
-  const iniciarSesion = useCallback(async (email: string, password: string) => {
-    const respuesta = await authApi.login(email, password);
+  const iniciarSesion = useCallback((email: string, password: string) => authApi.login(email, password), []);
+
+  const verificarCodigo = useCallback(async (desafio: string, codigo: string) => {
+    const respuesta = await authApi.verificarLogin(desafio, codigo);
     tokenStore.set(respuesta.access_token);
     setUsuario(respuesta.usuario);
     return respuesta.usuario;
@@ -52,8 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const valor = useMemo(
-    () => ({ usuario, cargando, iniciarSesion, cerrarSesion, actualizarUsuario: setUsuario }),
-    [usuario, cargando, iniciarSesion, cerrarSesion],
+    () => ({ usuario, cargando, iniciarSesion, verificarCodigo, cerrarSesion, actualizarUsuario: setUsuario }),
+    [usuario, cargando, iniciarSesion, verificarCodigo, cerrarSesion],
   );
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }

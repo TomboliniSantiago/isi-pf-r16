@@ -6,6 +6,7 @@ import { CambiarPasswordPage } from "./pages/CambiarPasswordPage";
 import { DevUsuariosPage } from "./pages/DevUsuariosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LoginPage } from "./pages/LoginPage";
+import { RecuperarPasswordPage } from "./pages/RecuperarPasswordPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
 
@@ -15,6 +16,7 @@ export function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/recuperar-password" element={<RecuperarPasswordPage />} />
           <Route path="/dev/usuarios" element={<DevUsuariosPage />} />
           <Route
             path="/cambiar-password"

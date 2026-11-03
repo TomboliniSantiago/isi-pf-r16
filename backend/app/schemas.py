@@ -15,8 +15,44 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+Desafio = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+# Texto libre: un código mal formado cuenta como código incorrecto.
+Codigo = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=12)]
+
+
 class CambiarPasswordIn(BaseModel):
     password_actual: str = Field(min_length=1, max_length=128)
+    password_nueva: str = Field(min_length=1, max_length=128)
+    # Obligatorios salvo en el cambio de la contraseña temporal.
+    desafio: Desafio | None = None
+    codigo: Codigo | None = None
+
+
+class DesafioOut(BaseModel):
+    """Código enviado por correo: el cliente debe devolver `desafio` junto con el código."""
+
+    desafio: str
+    destino: str
+    expira_en: int
+    reenvio_en: int
+
+
+class VerificarCodigoIn(BaseModel):
+    desafio: Desafio
+    codigo: Codigo
+
+
+class ReenviarCodigoIn(BaseModel):
+    desafio: Desafio
+
+
+class RecuperoIn(BaseModel):
+    email: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+
+
+class RecuperoConfirmarIn(BaseModel):
+    desafio: Desafio
+    codigo: Codigo
     password_nueva: str = Field(min_length=1, max_length=128)
 
 

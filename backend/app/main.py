@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.errors import ErrorNegocio
 from app.routers import auth, dev_usuarios, usuarios
@@ -29,9 +29,19 @@ def manejar_validacion(_: Request, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": f"Datos inválidos. {detalle}", "errores": errores})
 
 
-@app.exception_handler(OperationalError)
-def manejar_base_no_disponible(request: Request, exc: OperationalError) -> JSONResponse:
-    # Base inaccesible (red, credenciales o Azure SQL serverless reanudándose tras una pausa).
+def _base_no_disponible(exc: DBAPIError) -> bool:
+    """Errores de conexión: red, credenciales o Azure SQL serverless reanudándose (40613).
+    pyodbc no siempre los clasifica como OperationalError; se reconocen por SQLSTATE 08xxx."""
+    if isinstance(exc, OperationalError):
+        return True
+    estado = exc.orig.args[0] if exc.orig is not None and exc.orig.args else ""
+    return str(estado).startswith("08") or "(40613)" in str(exc.orig)
+
+
+@app.exception_handler(DBAPIError)
+def manejar_error_base(request: Request, exc: DBAPIError) -> JSONResponse:
+    if not _base_no_disponible(exc):
+        return manejar_error_inesperado(request, exc)
     logger.error("Base de datos no disponible en %s %s: %s", request.method, request.url.path, exc.orig)
     return JSONResponse(
         status_code=503,

@@ -610,6 +610,34 @@ a {
   border: 1px solid #f1dca4;
 }
 
+/* ---------- Código de verificación ---------- */
+.campo .campo-codigo {
+  max-width: 220px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 1.5rem;
+  letter-spacing: 0.5em;
+  text-align: center;
+}
+.ingreso-codigo .texto-ayuda {
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+}
+.boton-enlace:disabled {
+  color: var(--texto-secundario);
+  cursor: default;
+  text-decoration: none;
+}
+.bloque-codigo {
+  margin: 0.5rem 0 1rem;
+  padding: 1rem;
+  background: var(--azul-50);
+  border: 1px solid var(--azul-200);
+  border-radius: var(--radio);
+}
+.bloque-codigo .texto-secundario {
+  font-size: 0.9rem;
+}
+
 /* ---------- Modo desarrollo (sin sesión) ---------- */
 .contenido-sin-menu {
   width: 100%;
