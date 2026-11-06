@@ -5,9 +5,11 @@ interface Props {
   onCerrar: () => void;
   children: ReactNode;
   pie?: ReactNode;
+  /** Ventana más ancha, para contenido tabular. */
+  ancho?: boolean;
 }
 
-export function Modal({ titulo, onCerrar, children, pie }: Props) {
+export function Modal({ titulo, onCerrar, children, pie, ancho = false }: Props) {
   useEffect(() => {
     const alPresionar = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCerrar();
@@ -18,7 +20,7 @@ export function Modal({ titulo, onCerrar, children, pie }: Props) {
 
   return (
     <div className="modal-fondo" onMouseDown={(e) => e.target === e.currentTarget && onCerrar()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
+      <div className={ancho ? "modal modal-ancho" : "modal"} role="dialog" aria-modal="true" aria-labelledby="modal-titulo">
         <div className="modal-encabezado">
           <h2 id="modal-titulo">{titulo}</h2>
           <button type="button" className="modal-cerrar" onClick={onCerrar} aria-label="Cerrar">

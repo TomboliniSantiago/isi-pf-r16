@@ -38,6 +38,10 @@ export function Layout() {
           <NavLink to="/" end className="menu-item">
             Inicio
           </NavLink>
+          <span className="menu-seccion">Contabilidad</span>
+          <NavLink to="/plan-cuentas" className="menu-item">
+            Plan de cuentas
+          </NavLink>
           {esAdmin && (
             <>
               <span className="menu-seccion">Administración</span>
