@@ -1,7 +1,7 @@
 import { api } from "./client";
+import type { CondicionIva, DatosContribuyente } from "./contribuyentes";
 
-export const CONDICIONES_IVA = ["Responsable Inscripto", "Monotributo", "Exento", "Consumidor Final"] as const;
-export type CondicionIva = (typeof CONDICIONES_IVA)[number];
+export { CONDICIONES_IVA, type CondicionIva } from "./contribuyentes";
 
 export interface ClienteResumen {
   id_cliente: number;
@@ -23,14 +23,7 @@ export interface ClienteDetalle extends Cliente {
   comprobantes_pendientes: number;
 }
 
-export interface ClienteDatos {
-  cuit: string;
-  razon_social: string;
-  condicion_iva: CondicionIva;
-  domicilio: string;
-  localidad: string;
-  provincia: string;
-}
+export type ClienteDatos = DatosContribuyente;
 
 export interface ConsultaCuit {
   cuit: string;

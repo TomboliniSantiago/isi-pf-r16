@@ -1,15 +1,15 @@
-import { CONDICIONES_IVA, type ClienteDatos, type CondicionIva } from "../../api/clientes";
+import { CONDICIONES_IVA, type CondicionIva, type DatosContribuyente } from "../api/contribuyentes";
 
 interface Props {
-  datos: ClienteDatos;
-  onCambio: (datos: ClienteDatos) => void;
+  datos: DatosContribuyente;
+  onCambio: (datos: DatosContribuyente) => void;
   /** En el alta el CUIT ya se validó contra el padrón y no se edita acá. */
   cuitEditable: boolean;
 }
 
-/** Campos del cliente compartidos por el alta y la modificación. */
-export function CamposCliente({ datos, onCambio, cuitEditable }: Props) {
-  const cambiar = (campo: keyof ClienteDatos) => (valor: string) => onCambio({ ...datos, [campo]: valor });
+/** Campos de un cliente o proveedor, compartidos por el alta y la modificación. */
+export function CamposContribuyente({ datos, onCambio, cuitEditable }: Props) {
+  const cambiar = (campo: keyof DatosContribuyente) => (valor: string) => onCambio({ ...datos, [campo]: valor });
 
   return (
     <>

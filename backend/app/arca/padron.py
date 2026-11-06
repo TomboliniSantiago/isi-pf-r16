@@ -58,6 +58,28 @@ _SIMULADOS = [
     DatosPadron(
         "30-71234099-8", "Tecnored Córdoba S.R.L.", "Responsable Inscripto", "Av. Colón 1234", "Córdoba", "Córdoba"
     ),
+    # Proveedores que no están en los datos de prueba.
+    DatosPadron(
+        "30-71045678-6",
+        "Insumos Gráficos del Sur S.A.",
+        "Responsable Inscripto",
+        "Av. Peñaloza 7400",
+        "Santa Fe",
+        "Santa Fe",
+    ),
+    DatosPadron(
+        "30-70654321-6", "Logística Litoral S.R.L.", "Responsable Inscripto", "Ruta 11 Km 455", "Recreo", "Santa Fe"
+    ),
+    DatosPadron("20-25789456-9", "Jorge Benítez", "Monotributo", "Salta 2780", "Santa Fe", "Santa Fe"),
+    # Proveedor de los datos de prueba: el sistema detecta el duplicado.
+    DatosPadron(
+        "30-70123456-8",
+        "Mayorista Informático del Litoral S.A.",
+        "Responsable Inscripto",
+        "Ruta 168 Km 3",
+        "Santa Fe",
+        "Santa Fe",
+    ),
 ]
 
 

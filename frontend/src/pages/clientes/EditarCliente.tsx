@@ -3,7 +3,7 @@ import { clientesApi, datosDe, type Cliente, type ClienteDatos } from "../../api
 import { mensajeDeError } from "../../api/client";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
-import { CamposCliente } from "./CamposCliente";
+import { CamposContribuyente } from "../../components/CamposContribuyente";
 
 /** Modificación de cliente (CUU-007 2.a). El CUIT solo puede cambiarse si no tiene comprobantes. */
 export function EditarCliente({
@@ -49,7 +49,7 @@ export function EditarCliente({
     >
       <form id="form-editar-cliente" onSubmit={guardar}>
         {error && <Alerta tipo="error">{error}</Alerta>}
-        <CamposCliente datos={datos} onCambio={setDatos} cuitEditable />
+        <CamposContribuyente datos={datos} onCambio={setDatos} cuitEditable />
       </form>
     </Modal>
   );
