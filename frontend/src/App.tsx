@@ -3,6 +3,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { RutaProtegida } from "./auth/RutaProtegida";
 import { Layout } from "./components/Layout";
 import { CambiarPasswordPage } from "./pages/CambiarPasswordPage";
+import { ClientesPage } from "./pages/clientes/ClientesPage";
 import { DevUsuariosPage } from "./pages/DevUsuariosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -36,6 +37,7 @@ export function App() {
           >
             <Route index element={<InicioPage />} />
             <Route path="plan-cuentas" element={<PlanCuentasPage />} />
+            <Route path="clientes" element={<ClientesPage />} />
             <Route
               path="usuarios"
               element={

@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.errors import ErrorNegocio
-from app.routers import auth, dev_usuarios, plan_cuentas, usuarios
+from app.routers import auth, clientes, dev_usuarios, plan_cuentas, usuarios
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("eugenia")
@@ -15,6 +15,7 @@ app = FastAPI(title="EugenIA API", version="0.1.0")
 app.include_router(auth.router)
 app.include_router(usuarios.router)
 app.include_router(plan_cuentas.router)
+app.include_router(clientes.router)
 app.include_router(dev_usuarios.router)  # sin inicio de sesión: solo para desarrollo
 
 
