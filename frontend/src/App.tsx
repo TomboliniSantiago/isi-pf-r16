@@ -6,6 +6,7 @@ import { CambiarPasswordPage } from "./pages/CambiarPasswordPage";
 import { DevUsuariosPage } from "./pages/DevUsuariosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PlanCuentasPage } from "./pages/plan-cuentas/PlanCuentasPage";
 import { RecuperarPasswordPage } from "./pages/RecuperarPasswordPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
@@ -34,6 +35,7 @@ export function App() {
             }
           >
             <Route index element={<InicioPage />} />
+            <Route path="plan-cuentas" element={<PlanCuentasPage />} />
             <Route
               path="usuarios"
               element={

@@ -29,6 +29,14 @@ def test_base_no_disponible_responde_503(client, exc):
     assert "base de datos no está disponible" in r.json()["detail"]
 
 
+def test_ip_no_habilitada_en_firewall(client):
+    exc = ProgrammingError("SELECT 1", {}, Exception("42000", "Client with IP address 'x' is not allowed. (40615)"))
+    app.dependency_overrides[get_db] = _falla(exc)
+    r = client.get("/api/auth/dev/usuarios")
+    assert r.status_code == 503
+    assert "firewall" in r.json()["detail"]
+
+
 def test_otros_errores_de_base_responden_500(client):
     exc = ProgrammingError("SELECT 1", {}, Exception("42S02", "Invalid object name 'CODIGO_VERIFICACION'."))
     app.dependency_overrides[get_db] = _falla(exc)

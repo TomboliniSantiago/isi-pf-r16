@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.errors import ErrorNegocio
-from app.routers import auth, dev_usuarios, usuarios
+from app.routers import auth, dev_usuarios, plan_cuentas, usuarios
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("eugenia")
@@ -14,6 +14,7 @@ logger = logging.getLogger("eugenia")
 app = FastAPI(title="EugenIA API", version="0.1.0")
 app.include_router(auth.router)
 app.include_router(usuarios.router)
+app.include_router(plan_cuentas.router)
 app.include_router(dev_usuarios.router)  # sin inicio de sesión: solo para desarrollo
 
 
@@ -40,6 +41,14 @@ def _base_no_disponible(exc: DBAPIError) -> bool:
 
 @app.exception_handler(DBAPIError)
 def manejar_error_base(request: Request, exc: DBAPIError) -> JSONResponse:
+    if "(40615)" in str(exc.orig):  # IP no habilitada en el firewall de Azure SQL
+        logger.error("Firewall de Azure SQL rechazó la conexión: %s", exc.orig)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "La base de datos rechazó la conexión: la IP no está habilitada en el firewall de Azure."
+            },
+        )
     if not _base_no_disponible(exc):
         return manejar_error_inesperado(request, exc)
     logger.error("Base de datos no disponible en %s %s: %s", request.method, request.url.path, exc.orig)
