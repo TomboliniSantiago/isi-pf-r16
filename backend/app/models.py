@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001, 002 y 003)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 004)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -135,6 +135,8 @@ class AsientoContable(Base):
     fecha: Mapped[date | None] = mapped_column(Date)
     concepto: Mapped[str | None] = mapped_column(Unicode(255))
     tipo_origen: Mapped[str | None] = mapped_column(Unicode(255))
+    id_venta: Mapped[int | None] = mapped_column(Integer, ForeignKey("VENTA.id_venta"))
+    id_compra: Mapped[int | None] = mapped_column(Integer)
     estado: Mapped[str | None] = mapped_column(Unicode(255))
 
 
@@ -146,6 +148,56 @@ class DetalleAsiento(Base):
     id_cuenta: Mapped[int] = mapped_column(Integer, ForeignKey("PLAN_CUENTA.id_cuenta"))
     debe: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     haber: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
+
+
+ESTADO_ASIENTO_ASENTADO = "ASENTADO"
+
+
+class CondicionIva(StrEnum):
+    RESPONSABLE_INSCRIPTO = "Responsable Inscripto"
+    MONOTRIBUTO = "Monotributo"
+    EXENTO = "Exento"
+    CONSUMIDOR_FINAL = "Consumidor Final"
+
+
+class Cliente(Base):
+    """Esquema base + migración 004_clientes. activo usa '1'/'0' como los datos existentes."""
+
+    __tablename__ = "CLIENTE"
+
+    id_cliente: Mapped[int] = mapped_column(Integer, primary_key=True)
+    razon_social: Mapped[str | None] = mapped_column(Unicode(255))
+    cuit: Mapped[str | None] = mapped_column(Unicode(255), unique=True)
+    domicilio: Mapped[str | None] = mapped_column(Unicode(255))
+    localidad: Mapped[str | None] = mapped_column(Unicode(255))
+    provincia: Mapped[str | None] = mapped_column(Unicode(255))
+    condicion_iva: Mapped[str | None] = mapped_column(Unicode(255))
+    activo: Mapped[str | None] = mapped_column(Unicode(255))
+
+    @property
+    def esta_activo(self) -> bool:
+        return self.activo == CUENTA_SI
+
+    @property
+    def codigo(self) -> str:
+        return f"CLI-{self.id_cliente:06d}"
+
+
+class Venta(Base):
+    """Esquema base. Por ahora solo se lee (historial de comprobantes del cliente); se gestiona en CUU-001."""
+
+    __tablename__ = "VENTA"
+
+    id_venta: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_emisor: Mapped[int] = mapped_column(Integer)
+    id_cliente: Mapped[int] = mapped_column(Integer, ForeignKey("CLIENTE.id_cliente"))
+    tipo_comprobante: Mapped[str | None] = mapped_column(Unicode(255))
+    punto_venta: Mapped[int | None] = mapped_column(Integer)
+    numero_comprobante: Mapped[int | None] = mapped_column(Integer)
+    fecha_emision: Mapped[date | None] = mapped_column(Date)
+    moneda: Mapped[str | None] = mapped_column(Unicode(255))
+    importe_total: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
+    cae: Mapped[str | None] = mapped_column(Unicode(255))
 
 
 class AuditoriaLog(Base):
