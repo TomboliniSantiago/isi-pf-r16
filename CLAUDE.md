@@ -12,6 +12,7 @@ Reglas:
 - El OCR nunca contabiliza sin confirmación humana; guardar valor extraído y valor corregido.
 - El adaptador de ARCA va desacoplado de la lógica contable, con simulador para desarrollo.
 - Auditar operaciones críticas (usuario, fecha, acción, entidad, valores antes/después).
+- Las bajas son siempre lógicas: marcar el registro como inactivo, conservarlo con su historial y auditar; nunca borrar filas.
 - No inventar reglas de negocio ni agregar dependencias innecesarias; cambios pequeños y con pruebas.
 - Sin secretos ni credenciales en el repositorio.
 - Responder en español.

@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 004)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 005)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -136,7 +136,7 @@ class AsientoContable(Base):
     concepto: Mapped[str | None] = mapped_column(Unicode(255))
     tipo_origen: Mapped[str | None] = mapped_column(Unicode(255))
     id_venta: Mapped[int | None] = mapped_column(Integer, ForeignKey("VENTA.id_venta"))
-    id_compra: Mapped[int | None] = mapped_column(Integer)
+    id_compra: Mapped[int | None] = mapped_column(Integer, ForeignKey("COMPRA.id_compra"))
     estado: Mapped[str | None] = mapped_column(Unicode(255))
 
 
@@ -198,6 +198,46 @@ class Venta(Base):
     moneda: Mapped[str | None] = mapped_column(Unicode(255))
     importe_total: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     cae: Mapped[str | None] = mapped_column(Unicode(255))
+
+
+class Proveedor(Base):
+    """Esquema base + migración 005_proveedores. activo usa '1'/'0' como los datos existentes."""
+
+    __tablename__ = "PROVEEDOR"
+
+    id_proveedor: Mapped[int] = mapped_column(Integer, primary_key=True)
+    razon_social: Mapped[str | None] = mapped_column(Unicode(255))
+    cuit: Mapped[str | None] = mapped_column(Unicode(255), unique=True)
+    domicilio: Mapped[str | None] = mapped_column(Unicode(255))
+    localidad: Mapped[str | None] = mapped_column(Unicode(255))
+    provincia: Mapped[str | None] = mapped_column(Unicode(255))
+    condicion_iva: Mapped[str | None] = mapped_column(Unicode(255))
+    activo: Mapped[str | None] = mapped_column(Unicode(255))
+
+    @property
+    def esta_activo(self) -> bool:
+        return self.activo == CUENTA_SI
+
+    @property
+    def codigo(self) -> str:
+        return f"PRV-{self.id_proveedor:06d}"
+
+
+class Compra(Base):
+    """Esquema base. Por ahora solo se lee (historial de comprobantes del proveedor); se gestiona en CUU-002.
+    No tiene CAE: el CAE lo emite el proveedor y la tabla no lo registra."""
+
+    __tablename__ = "COMPRA"
+
+    id_compra: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_emisor: Mapped[int] = mapped_column(Integer)
+    id_proveedor: Mapped[int] = mapped_column(Integer, ForeignKey("PROVEEDOR.id_proveedor"))
+    tipo_comprobante: Mapped[str | None] = mapped_column(Unicode(255))
+    punto_venta: Mapped[int | None] = mapped_column(Integer)
+    numero_comprobante: Mapped[int | None] = mapped_column(Integer)
+    fecha_emision: Mapped[date | None] = mapped_column(Date)
+    moneda: Mapped[str | None] = mapped_column(Unicode(255))
+    importe_total: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
 
 
 class AuditoriaLog(Base):

@@ -3,7 +3,7 @@ import { clientesApi, type ClienteDatos, type ClienteResumen, type CondicionIva 
 import { mensajeDeError } from "../../api/client";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
-import { CamposCliente } from "./CamposCliente";
+import { CamposContribuyente } from "../../components/CamposContribuyente";
 
 interface Props {
   onCerrar: () => void;
@@ -94,7 +94,7 @@ export function AltaCliente({ onCerrar, onCreado, onVerExistente }: Props) {
         <form id="form-alta-cliente" onSubmit={confirmar}>
           {aviso && <Alerta tipo="aviso">{aviso}</Alerta>}
           {error && <Alerta tipo="error">{error}</Alerta>}
-          <CamposCliente datos={datos} onCambio={setDatos} cuitEditable={false} />
+          <CamposContribuyente datos={datos} onCambio={setDatos} cuitEditable={false} />
         </form>
       </Modal>
     );
