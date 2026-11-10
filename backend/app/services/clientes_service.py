@@ -25,6 +25,7 @@ from app.models import (
     AsientoContable,
     Cliente,
     CondicionIva,
+    EstadoVenta,
     Usuario,
     Venta,
 )
@@ -79,7 +80,10 @@ def comprobantes(db: Session, id_cliente: int) -> list[tuple[Venta, bool]]:
 
 
 def es_pendiente(venta: Venta, asentada: bool) -> bool:
-    """Pendiente de procesamiento: sin CAE (no validada con ARCA) o sin asiento asentado."""
+    """Pendiente de procesamiento: sin CAE (no validada con ARCA) o sin asiento asentado.
+    Una venta anulada ya no está pendiente."""
+    if venta.estado == EstadoVenta.ANULADA:
+        return False
     return not venta.cae or not asentada
 
 

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { clientesApi, type ClienteDatos, type ClienteResumen, type CondicionIva } from "../../api/clientes";
+import { clientesApi, type Cliente, type ClienteDatos, type ClienteResumen, type CondicionIva } from "../../api/clientes";
 import { mensajeDeError } from "../../api/client";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
@@ -7,7 +7,7 @@ import { CamposContribuyente } from "../../components/CamposContribuyente";
 
 interface Props {
   onCerrar: () => void;
-  onCreado: (mensaje: string) => void;
+  onCreado: (mensaje: string, cliente: Cliente) => void;
   onVerExistente: (cliente: ClienteResumen) => void;
 }
 
@@ -61,7 +61,7 @@ export function AltaCliente({ onCerrar, onCreado, onVerExistente }: Props) {
     setEnviando(true);
     try {
       const creado = await clientesApi.crear(datos);
-      onCreado(`El cliente ${creado.razon_social} se registró con el código ${creado.codigo}.`);
+      onCreado(`El cliente ${creado.razon_social} se registró con el código ${creado.codigo}.`, creado);
     } catch (err) {
       setError(mensajeDeError(err));
       setEnviando(false);

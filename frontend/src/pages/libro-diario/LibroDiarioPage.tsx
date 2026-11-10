@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   ESTADOS,
   ORIGENES,
@@ -197,6 +198,11 @@ export function LibroDiarioPage() {
                       {abiertos.has(a.id_asiento) ? "▾" : "▸"} {a.concepto}
                     </button>
                     {a.referencia && <small className="texto-secundario asiento-referencia">{a.referencia}</small>}
+                    {a.id_venta && (
+                      <small className="asiento-referencia">
+                        <Link to={`/ventas?venta=${a.id_venta}`}>Ver comprobante de venta</Link>
+                      </small>
+                    )}
                     {a.revierte_a && <small className="texto-secundario asiento-referencia">Revierte el asiento N° {a.revierte_a}</small>}
                     {a.revertido_por && (
                       <small className="texto-secundario asiento-referencia">Revertido por el asiento N° {a.revertido_por}</small>

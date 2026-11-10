@@ -89,7 +89,7 @@ def comprobantes(
         ComprobanteOut(
             id_venta=v.id_venta,
             tipo_comprobante=v.tipo_comprobante,
-            numero=f"{v.punto_venta or 0:04d}-{v.numero_comprobante or 0:08d}",
+            numero=v.numero,
             fecha_emision=v.fecha_emision,
             moneda=v.moneda,
             importe_total=v.importe_total,

@@ -13,6 +13,7 @@ import { ProveedoresPage } from "./pages/proveedores/ProveedoresPage";
 import { RecuperarPasswordPage } from "./pages/RecuperarPasswordPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
+import { VentasPage } from "./pages/ventas/VentasPage";
 
 export function App() {
   return (
@@ -42,6 +43,7 @@ export function App() {
             <Route path="libro-diario" element={<LibroDiarioPage />} />
             <Route path="clientes" element={<ClientesPage />} />
             <Route path="proveedores" element={<ProveedoresPage />} />
+            <Route path="ventas" element={<VentasPage />} />
             <Route
               path="usuarios"
               element={

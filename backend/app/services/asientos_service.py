@@ -170,7 +170,7 @@ def crear(
         origen=origen,
         despues=_instantanea(db, asiento),
     )
-    _confirmar_transaccion(db)
+    confirmar_transaccion(db)
     return asiento
 
 
@@ -197,8 +197,43 @@ def confirmar(db: Session, id_asiento: int, actor: Usuario, origen: str | None) 
         antes=antes,
         despues=_instantanea(db, asiento),
     )
-    _confirmar_transaccion(db)
+    confirmar_transaccion(db)
     return asiento
+
+
+# ---------- Asientos de comprobantes (CUU-001 / CUU-002) ----------
+# No confirman la transacción: el servicio del comprobante guarda el comprobante y su asiento juntos.
+
+
+def registrar_de_comprobante(
+    db: Session,
+    datos: AsientoIn,
+    actor: Usuario,
+    origen: str | None,
+    tipo_origen: OrigenAsiento,
+    id_venta: int | None = None,
+    id_compra: int | None = None,
+) -> AsientoContable:
+    asiento = _registrar(db, datos, tipo_origen, id_venta=id_venta, id_compra=id_compra)
+    auditoria.registrar(
+        db,
+        accion="ALTA",
+        tabla=TABLA,
+        id_registro=asiento.id_asiento,
+        actor=actor.email,
+        origen=origen,
+        despues=_instantanea(db, asiento),
+    )
+    return asiento
+
+
+def revertir_de_comprobante(
+    db: Session, asiento: AsientoContable, actor: Usuario, origen: str | None
+) -> AsientoContable:
+    """Anula el asiento de un comprobante con un contra-asiento. Devuelve el contra-asiento."""
+    if asiento.estado != EstadoAsiento.ASENTADO:
+        raise ErrorNegocio(409, f"El asiento {_descripcion(asiento)} no está vigente.")
+    return _anular_sin_confirmar(db, asiento, actor, origen)
 
 
 # ---------- Anulación y modificación (CUU-003 3.a / 3.b) ----------
@@ -209,7 +244,7 @@ def anular(db: Session, id_asiento: int, actor: Usuario, origen: str | None) -> 
     Devuelve el contra-asiento, o el borrador descartado."""
     asiento = _modificable(db, id_asiento)
     resultado = _anular_sin_confirmar(db, asiento, actor, origen)
-    _confirmar_transaccion(db)
+    confirmar_transaccion(db)
     return resultado
 
 
@@ -240,7 +275,7 @@ def modificar(db: Session, id_asiento: int, datos: AsientoIn, actor: Usuario, or
         antes=antes,
         despues=_instantanea(db, nuevo),
     )
-    _confirmar_transaccion(db)
+    confirmar_transaccion(db)
     return nuevo
 
 
@@ -359,7 +394,7 @@ def _instantanea(db: Session, asiento: AsientoContable) -> dict[str, Any]:
     }
 
 
-def _confirmar_transaccion(db: Session) -> None:
+def confirmar_transaccion(db: Session) -> None:
     try:
         db.commit()
     except IntegrityError as exc:  # dos asientos confirmados a la vez con el mismo número
