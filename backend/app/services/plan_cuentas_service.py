@@ -58,6 +58,9 @@ DESCRIPCION_PREDETERMINADA = {
     ClavePredeterminada.PROVEEDORES: "Proveedores",
     ClavePredeterminada.IVA_CREDITO_FISCAL: "IVA crédito fiscal",
     ClavePredeterminada.RESULTADO_EJERCICIO: "Resultado del ejercicio",
+    ClavePredeterminada.CAJA: "Caja (ventas al contado)",
+    ClavePredeterminada.BANCO: "Banco (ventas por transferencia)",
+    ClavePredeterminada.OTROS_IMPUESTOS_VENTAS: "Otros impuestos de ventas (percepciones)",
 }
 
 
@@ -78,6 +81,9 @@ REGLAS_PREDETERMINADA = {
     ClavePredeterminada.PROVEEDORES: ReglaPredeterminada((TipoCuenta.PASIVO,), Naturaleza.ACREEDORA),
     ClavePredeterminada.IVA_CREDITO_FISCAL: ReglaPredeterminada((TipoCuenta.ACTIVO,), Naturaleza.DEUDORA),
     ClavePredeterminada.RESULTADO_EJERCICIO: ReglaPredeterminada((TipoCuenta.PATRIMONIO_NETO,), None),
+    ClavePredeterminada.CAJA: ReglaPredeterminada((TipoCuenta.ACTIVO,), Naturaleza.DEUDORA),
+    ClavePredeterminada.BANCO: ReglaPredeterminada((TipoCuenta.ACTIVO,), Naturaleza.DEUDORA),
+    ClavePredeterminada.OTROS_IMPUESTOS_VENTAS: ReglaPredeterminada((TipoCuenta.PASIVO,), Naturaleza.ACREEDORA),
 }
 
 ETIQUETA_TIPO = {

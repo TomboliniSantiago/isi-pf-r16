@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 006)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 007)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -91,6 +91,11 @@ class ClavePredeterminada(StrEnum):
     PROVEEDORES = "PROVEEDORES"
     IVA_CREDITO_FISCAL = "IVA_CREDITO_FISCAL"
     RESULTADO_EJERCICIO = "RESULTADO_EJERCICIO"
+    # Cuenta del Debe de una venta según la condición de cobro (CUU-001 paso 4).
+    CAJA = "CAJA"
+    BANCO = "BANCO"
+    # Otros impuestos cobrados en la venta (percepciones), a depositar.
+    OTROS_IMPUESTOS_VENTAS = "OTROS_IMPUESTOS_VENTAS"
 
 
 class PlanCuenta(Base):
@@ -198,8 +203,25 @@ class Cliente(Base):
         return f"CLI-{self.id_cliente:06d}"
 
 
+class EstadoVenta(StrEnum):
+    PENDIENTE = "PENDIENTE"  # registrada sin contabilizar (CUU-001 6.a): sin asiento
+    CONTABILIZADA = "CONTABILIZADA"  # con asiento asentado
+    ANULADA = "ANULADA"  # su asiento fue revertido (o nunca se contabilizó)
+
+
+class EmpresaEmisora(Base):
+    """Esquema base. Solo se lee: la empresa que usa EugenIA (una sola; multiempresa queda fuera del alcance)."""
+
+    __tablename__ = "EMPRESA_EMISORA"
+
+    id_emisor: Mapped[int] = mapped_column(Integer, primary_key=True)
+    razon_social: Mapped[str | None] = mapped_column(Unicode(255))
+    cuit: Mapped[str | None] = mapped_column(Unicode(255))
+    condicion_iva: Mapped[str | None] = mapped_column(Unicode(255))
+
+
 class Venta(Base):
-    """Esquema base. Por ahora solo se lee (historial de comprobantes del cliente); se gestiona en CUU-001."""
+    """Esquema base + migración 007_ventas (estado, fecha contable y otros impuestos). CUU-001."""
 
     __tablename__ = "VENTA"
 
@@ -210,9 +232,21 @@ class Venta(Base):
     punto_venta: Mapped[int | None] = mapped_column(Integer)
     numero_comprobante: Mapped[int | None] = mapped_column(Integer)
     fecha_emision: Mapped[date | None] = mapped_column(Date)
+    fecha_contable: Mapped[date | None] = mapped_column(Date)
+    condicion_venta: Mapped[str | None] = mapped_column(Unicode(255))
     moneda: Mapped[str | None] = mapped_column(Unicode(255))
+    cotizacion: Mapped[Decimal | None] = mapped_column(Numeric(15, 6))
+    importe_neto_gravado: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
+    importe_iva: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
+    importe_otros_impuestos: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     importe_total: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     cae: Mapped[str | None] = mapped_column(Unicode(255))
+    estado: Mapped[str | None] = mapped_column(Unicode(20))
+
+    @property
+    def numero(self) -> str:
+        """Ej.: 0001-00000123."""
+        return f"{self.punto_venta or 0:04d}-{self.numero_comprobante or 0:08d}"
 
 
 class Proveedor(Base):

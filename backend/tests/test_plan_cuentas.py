@@ -266,7 +266,7 @@ def test_sin_sesion(client):
 
 def test_predeterminadas(client, db, contador, estructura):
     claves = client.get(f"{URL}/predeterminadas", headers=contador).json()
-    assert len(claves) == 7 and all(c["cuenta"] is None for c in claves)
+    assert len(claves) == 10 and all(c["cuenta"] is None for c in claves)
 
     r = client.put(f"{URL}/predeterminadas/VENTAS", headers=contador, json={"id_cuenta": estructura["caja_bancos"]})
     assert r.status_code == 422  # no imputable
