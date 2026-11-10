@@ -75,7 +75,7 @@ def obtener(
     return ProveedorDetalleOut(
         **ProveedorOut.de(proveedor).model_dump(),
         cantidad_comprobantes=len(compras),
-        comprobantes_pendientes=sum(servicio.es_pendiente(asentada) for _, asentada in compras),
+        comprobantes_pendientes=sum(servicio.es_pendiente(c, asentada) for c, asentada in compras),
     )
 
 
@@ -89,12 +89,12 @@ def comprobantes(
         ComprobanteOut(
             id_compra=c.id_compra,
             tipo_comprobante=c.tipo_comprobante,
-            numero=f"{c.punto_venta or 0:04d}-{c.numero_comprobante or 0:08d}",
+            numero=c.numero,
             fecha_emision=c.fecha_emision,
             moneda=c.moneda,
             importe_total=c.importe_total,
             asentado=asentada,
-            pendiente=servicio.es_pendiente(asentada),
+            pendiente=servicio.es_pendiente(c, asentada),
         )
         for c, asentada in servicio.comprobantes(db, id_proveedor)
     ]

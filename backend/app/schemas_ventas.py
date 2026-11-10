@@ -2,25 +2,11 @@
 
 from datetime import date
 from decimal import Decimal
-from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from app.schemas_asientos import Importe
-
-
-class TipoComprobanteVenta(StrEnum):
-    FACTURA_A = "Factura A"
-    FACTURA_B = "Factura B"
-    FACTURA_C = "Factura C"
-
-
-class CondicionCobro(StrEnum):
-    """Define la cuenta del Debe del asiento (paso 4)."""
-
-    CONTADO = "Contado"  # Caja
-    CUENTA_CORRIENTE = "Cuenta Corriente"  # Deudores por ventas
-    TRANSFERENCIA = "Transferencia"  # Banco
+from app.schemas_comprobantes import AsientoComprobanteOut, CondicionPago, LineaPropuestaOut, TipoComprobante
 
 
 class CuentasVentaIn(BaseModel):
@@ -37,13 +23,13 @@ class VentaIn(BaseModel):
     """Carga manual del comprobante (camino 1.a). La moneda es siempre pesos (multimoneda fuera de alcance)."""
 
     id_cliente: int
-    tipo_comprobante: TipoComprobanteVenta
+    tipo_comprobante: TipoComprobante
     punto_venta: int = Field(ge=1, le=99999)
     numero_comprobante: int = Field(ge=1, le=99999999)
     fecha_emision: date
     # Fecha del asiento; si no se indica, la de emisión.
     fecha_contable: date | None = None
-    condicion_venta: CondicionCobro
+    condicion_venta: CondicionPago
     importe_neto_gravado: Importe
     importe_iva: Importe = Decimal("0")
     importe_otros_impuestos: Importe = Decimal("0")
@@ -58,14 +44,6 @@ class ClienteVentaOut(BaseModel):
     codigo: str
     cuit: str | None
     razon_social: str | None
-
-
-class AsientoVentaOut(BaseModel):
-    id_asiento: int
-    numero_asiento: int | None
-    estado: str | None
-    # Si la venta se anuló: número del contra-asiento que revirtió al asiento.
-    revertido_por: int | None
 
 
 class VentaOut(BaseModel):
@@ -85,19 +63,7 @@ class VentaOut(BaseModel):
     importe_total: Decimal | None
     cae: str | None
     estado: str | None
-    asiento: AsientoVentaOut | None
-
-
-class LineaPropuestaOut(BaseModel):
-    """Línea del asiento que generará la venta. Sin cuenta: el sistema no pudo determinarla (4.a / 4.b)."""
-
-    rol: str
-    descripcion: str
-    id_cuenta: int | None
-    codigo: str | None
-    nombre: str | None
-    debe: Decimal
-    haber: Decimal
+    asiento: AsientoComprobanteOut | None
 
 
 class PropuestaOut(BaseModel):

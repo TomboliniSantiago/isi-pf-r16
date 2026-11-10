@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { CondicionIva } from "../../api/contribuyentes";
-import { proveedoresApi, type ProveedorDatos, type ProveedorResumen } from "../../api/proveedores";
+import { proveedoresApi, type Proveedor, type ProveedorDatos, type ProveedorResumen } from "../../api/proveedores";
 import { mensajeDeError } from "../../api/client";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
@@ -8,7 +8,7 @@ import { CamposContribuyente } from "../../components/CamposContribuyente";
 
 interface Props {
   onCerrar: () => void;
-  onCreado: (mensaje: string) => void;
+  onCreado: (mensaje: string, proveedor: Proveedor) => void;
   onVerExistente: (proveedor: ProveedorResumen) => void;
 }
 
@@ -62,7 +62,7 @@ export function AltaProveedor({ onCerrar, onCreado, onVerExistente }: Props) {
     setEnviando(true);
     try {
       const creado = await proveedoresApi.crear(datos);
-      onCreado(`El proveedor ${creado.razon_social} se registró con el código ${creado.codigo}.`);
+      onCreado(`El proveedor ${creado.razon_social} se registró con el código ${creado.codigo}.`, creado);
     } catch (err) {
       setError(mensajeDeError(err));
       setEnviando(false);

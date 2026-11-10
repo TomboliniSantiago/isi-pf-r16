@@ -203,6 +203,11 @@ export function LibroDiarioPage() {
                         <Link to={`/ventas?venta=${a.id_venta}`}>Ver comprobante de venta</Link>
                       </small>
                     )}
+                    {a.id_compra && (
+                      <small className="asiento-referencia">
+                        <Link to={`/compras?compra=${a.id_compra}`}>Ver comprobante de compra</Link>
+                      </small>
+                    )}
                     {a.revierte_a && <small className="texto-secundario asiento-referencia">Revierte el asiento N° {a.revierte_a}</small>}
                     {a.revertido_por && (
                       <small className="texto-secundario asiento-referencia">Revertido por el asiento N° {a.revertido_por}</small>

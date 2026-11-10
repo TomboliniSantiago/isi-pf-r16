@@ -20,7 +20,6 @@
   su asiento con un contra-asiento. Una venta con CAE no se anula (requiere una nota de crédito).
 """
 
-from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -35,67 +34,45 @@ from app.models import (
     ClavePredeterminada,
     Cliente,
     CondicionIva,
-    CuentaPredeterminada,
     EmpresaEmisora,
     EstadoVenta,
     OrigenAsiento,
-    PlanCuenta,
     Usuario,
     Venta,
 )
 from app.schemas_asientos import AsientoIn, LineaIn
-from app.schemas_ventas import CondicionCobro, CuentasVentaIn, TipoComprobanteVenta, VentaIn
+from app.schemas_comprobantes import CondicionPago, TipoComprobante
+from app.schemas_ventas import CuentasVentaIn, VentaIn
 from app.services import asientos_service
+from app.services.comprobantes import (
+    CERO,
+    MONEDA,
+    LineaPropuesta,
+    Propuesta,
+    SelectorCuentas,
+    empresa_emisora,
+    errores_de_importes,
+    filtro_por_numero,
+    mensaje_faltantes,
+)
 
 TABLA = "VENTA"
-CERO = Decimal("0.00")
-MONEDA = "ARS"
 
 CUENTA_DE_COBRO = {
-    CondicionCobro.CONTADO: ClavePredeterminada.CAJA,
-    CondicionCobro.CUENTA_CORRIENTE: ClavePredeterminada.DEUDORES_POR_VENTAS,
-    CondicionCobro.TRANSFERENCIA: ClavePredeterminada.BANCO,
+    CondicionPago.CONTADO: ClavePredeterminada.CAJA,
+    CondicionPago.CUENTA_CORRIENTE: ClavePredeterminada.DEUDORES_POR_VENTAS,
+    CondicionPago.TRANSFERENCIA: ClavePredeterminada.BANCO,
 }
 DESCRIPCION_COBRO = {
-    CondicionCobro.CONTADO: "Caja",
-    CondicionCobro.CUENTA_CORRIENTE: "Deudores por ventas",
-    CondicionCobro.TRANSFERENCIA: "Banco",
+    CondicionPago.CONTADO: "Caja",
+    CondicionPago.CUENTA_CORRIENTE: "Deudores por ventas",
+    CondicionPago.TRANSFERENCIA: "Banco",
 }
 TIPOS_POR_EMISOR = {
-    CondicionIva.RESPONSABLE_INSCRIPTO: (TipoComprobanteVenta.FACTURA_A, TipoComprobanteVenta.FACTURA_B),
-    CondicionIva.MONOTRIBUTO: (TipoComprobanteVenta.FACTURA_C,),
-    CondicionIva.EXENTO: (TipoComprobanteVenta.FACTURA_C,),
+    CondicionIva.RESPONSABLE_INSCRIPTO: (TipoComprobante.FACTURA_A, TipoComprobante.FACTURA_B),
+    CondicionIva.MONOTRIBUTO: (TipoComprobante.FACTURA_C,),
+    CondicionIva.EXENTO: (TipoComprobante.FACTURA_C,),
 }
-
-
-@dataclass
-class LineaPropuesta:
-    rol: str
-    descripcion: str
-    cuenta: PlanCuenta | None
-    debe: Decimal
-    haber: Decimal
-
-
-@dataclass
-class Propuesta:
-    lineas: list[LineaPropuesta]
-
-    @property
-    def total_debe(self) -> Decimal:
-        return sum((linea.debe for linea in self.lineas), CERO)
-
-    @property
-    def total_haber(self) -> Decimal:
-        return sum((linea.haber for linea in self.lineas), CERO)
-
-    @property
-    def balanceado(self) -> bool:
-        return self.total_debe == self.total_haber and self.total_debe > 0
-
-    @property
-    def faltantes(self) -> list[str]:
-        return [linea.descripcion for linea in self.lineas if linea.cuenta is None]
 
 
 # ---------- Consulta (paso 8) ----------
@@ -121,14 +98,10 @@ def listar(
         consulta = consulta.where(Venta.estado == estado)
     if buscar and buscar.strip():
         texto = buscar.strip()
-        digitos = "".join(c for c in texto if c.isdigit())
         filtros = [Venta.id_cliente.in_(select(Cliente.id_cliente).where(Cliente.razon_social.ilike(f"%{texto}%")))]
-        if digitos:  # número de comprobante, con o sin el punto de venta (0001-00000123)
-            partes = [p for p in texto.replace(" ", "").split("-") if p]
-            if len(partes) == 2 and all(p.isdigit() for p in partes):
-                filtros.append((Venta.punto_venta == int(partes[0])) & (Venta.numero_comprobante == int(partes[1])))
-            elif digitos.isdigit() and len(digitos) <= 8:
-                filtros.append(Venta.numero_comprobante == int(digitos))
+        por_numero = filtro_por_numero(texto, Venta.punto_venta, Venta.numero_comprobante)
+        if por_numero is not None:
+            filtros.append(por_numero)
         consulta = consulta.where(or_(*filtros))
     consulta = consulta.order_by(Venta.fecha_emision.desc(), Venta.id_venta.desc()).limit(limite)
     return list(db.scalars(consulta))
@@ -177,9 +150,7 @@ def proponer(db: Session, datos: VentaIn) -> tuple[Propuesta, Venta | None]:
 
 
 def _validar(db: Session, datos: VentaIn) -> tuple[EmpresaEmisora, Cliente]:
-    emisor = db.scalars(select(EmpresaEmisora).order_by(EmpresaEmisora.id_emisor).limit(1)).first()
-    if emisor is None:
-        raise ErrorNegocio(409, "No hay una empresa emisora configurada.")
+    emisor = empresa_emisora(db)
     cliente = db.get(Cliente, datos.id_cliente)
     if cliente is None:
         raise ErrorNegocio(422, "El cliente no existe.")
@@ -192,30 +163,19 @@ def _validar(db: Session, datos: VentaIn) -> tuple[EmpresaEmisora, Cliente]:
             f"Un emisor {emisor.condicion_iva} no emite {datos.tipo_comprobante}: "
             f"corresponde {' o '.join(permitidos)}.",
         )
-    if datos.tipo_comprobante == TipoComprobanteVenta.FACTURA_C and datos.importe_iva > 0:
+    if datos.tipo_comprobante == TipoComprobante.FACTURA_C and datos.importe_iva > 0:
         raise ErrorNegocio(422, "La Factura C no discrimina IVA: el importe de IVA debe ser cero.")
-    if datos.importe_neto_gravado <= 0:
-        raise ErrorNegocio(422, "El neto gravado debe ser mayor a cero.")
-    if datos.fecha_contable and datos.fecha_contable < datos.fecha_emision:
-        raise ErrorNegocio(422, "La fecha contable no puede ser anterior a la fecha de emisión.")
+    error = errores_de_importes(datos.importe_neto_gravado, datos.fecha_emision, datos.fecha_contable)
+    if error:
+        raise ErrorNegocio(422, error)
     return emisor, cliente
 
 
 def _propuesta(db: Session, datos: VentaIn) -> Propuesta:
     """Paso 4-5: cuentas intervinientes e importes. Las cuentas elegidas por el usuario tienen prioridad."""
-    predeterminadas = {p.clave: p.id_cuenta for p in db.scalars(select(CuentaPredeterminada))}
-
-    def cuenta(elegida: int | None, clave: ClavePredeterminada) -> PlanCuenta | None:
-        id_cuenta = elegida or predeterminadas.get(clave)
-        if id_cuenta is None:
-            return None
-        encontrada = db.get(PlanCuenta, id_cuenta)
-        if encontrada is None:
-            raise ErrorNegocio(422, "La cuenta seleccionada no existe.")
-        return encontrada
-
+    cuenta = SelectorCuentas(db).cuenta
     elegidas = datos.cuentas
-    condicion = CondicionCobro(datos.condicion_venta)
+    condicion = CondicionPago(datos.condicion_venta)
     lineas = [
         LineaPropuesta(
             "cobro",
@@ -362,11 +322,7 @@ def _contabilizar(
 ) -> None:
     propuesta = _propuesta(db, datos)
     if propuesta.faltantes:  # 4.a / 4.b
-        raise ErrorNegocio(
-            422,
-            f"No se pudo determinar la cuenta de {', '.join(propuesta.faltantes)}. "
-            "Selecciónela o configúrela como cuenta predeterminada en el Plan de Cuentas.",
-        )
+        raise ErrorNegocio(422, mensaje_faltantes(propuesta.faltantes))
     lineas = [
         LineaIn(id_cuenta=linea.cuenta.id_cuenta, debe=linea.debe, haber=linea.haber)
         for linea in propuesta.lineas

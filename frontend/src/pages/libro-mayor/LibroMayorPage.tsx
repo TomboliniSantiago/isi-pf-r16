@@ -172,6 +172,8 @@ function MayorDeCuenta({ cuenta, desde }: { cuenta: CuentaMayor; desde: string |
                 <td>
                   {m.id_venta ? (
                     <Link to={`/ventas?venta=${m.id_venta}`}>{m.referencia ?? "Venta"}</Link>
+                  ) : m.id_compra ? (
+                    <Link to={`/compras?compra=${m.id_compra}`}>{m.referencia ?? "Compra"}</Link>
                   ) : (
                     (m.referencia ?? etiquetaOrigen(m.tipo_origen))
                   )}
