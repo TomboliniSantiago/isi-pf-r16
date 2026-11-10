@@ -7,6 +7,7 @@ import { ClientesPage } from "./pages/clientes/ClientesPage";
 import { DevUsuariosPage } from "./pages/DevUsuariosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LibroDiarioPage } from "./pages/libro-diario/LibroDiarioPage";
+import { LibroMayorPage } from "./pages/libro-mayor/LibroMayorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PlanCuentasPage } from "./pages/plan-cuentas/PlanCuentasPage";
 import { ProveedoresPage } from "./pages/proveedores/ProveedoresPage";
@@ -41,6 +42,7 @@ export function App() {
             <Route index element={<InicioPage />} />
             <Route path="plan-cuentas" element={<PlanCuentasPage />} />
             <Route path="libro-diario" element={<LibroDiarioPage />} />
+            <Route path="libro-mayor" element={<LibroMayorPage />} />
             <Route path="clientes" element={<ClientesPage />} />
             <Route path="proveedores" element={<ProveedoresPage />} />
             <Route path="ventas" element={<VentasPage />} />

@@ -45,6 +45,9 @@ export function Layout() {
           <NavLink to="/libro-diario" className="menu-item">
             Libro Diario
           </NavLink>
+          <NavLink to="/libro-mayor" className="menu-item">
+            Libro Mayor
+          </NavLink>
           <span className="menu-seccion">Comercial</span>
           <NavLink to="/clientes" className="menu-item">
             Clientes
