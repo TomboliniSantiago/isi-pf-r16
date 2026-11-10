@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { mensajeDeError } from "../../api/client";
 import {
   etiquetaNaturaleza,
@@ -73,6 +74,9 @@ export function DetalleCuenta({ idCuenta, onCerrar }: { idCuenta: number; onCerr
           </dl>
 
           <h3 className="subtitulo">Movimientos</h3>
+          <p>
+            <Link to={`/libro-mayor?cuenta=${detalle.id_cuenta}`}>Ver saldos en el Libro Mayor</Link>
+          </p>
           {movimientos && movimientos.length === 0 ? (
             <p className="texto-secundario">La cuenta no tiene movimientos registrados.</p>
           ) : (

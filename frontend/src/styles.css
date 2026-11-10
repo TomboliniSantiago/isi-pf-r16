@@ -841,6 +841,41 @@ a {
   }
 }
 
+/* ---------- Libro Mayor ---------- */
+.filtros-mayor {
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+}
+.mayor-encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  padding: 1rem 1.5rem 0.5rem;
+}
+.mayor-encabezado h2,
+.resumen-mayor h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.mayor-encabezado .etiqueta,
+.mayor-cuenta td .etiqueta {
+  margin-left: 0.5rem;
+}
+.mayor-cuenta > .alerta {
+  margin: 0 1.5rem 0.75rem;
+}
+.fila-saldo td {
+  color: var(--texto-secundario);
+  font-style: italic;
+}
+
+@media (max-width: 900px) {
+  .filtros-mayor {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------- Modo desarrollo (sin sesión) ---------- */
 .contenido-sin-menu {
   width: 100%;
