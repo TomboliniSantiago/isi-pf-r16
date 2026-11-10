@@ -782,6 +782,65 @@ a {
   }
 }
 
+/* ---------- Libro Diario ---------- */
+.filtros-diario {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+}
+.tabla-diario tbody.asiento + tbody.asiento {
+  border-top: 1px solid var(--borde);
+}
+.asiento-concepto {
+  color: var(--texto);
+  font-weight: 600;
+  text-align: left;
+}
+.asiento-referencia {
+  display: block;
+  font-size: 0.78rem;
+}
+.tabla-diario .asiento-linea td {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 0;
+  background: #fbfcfe;
+  font-size: 0.85rem;
+}
+.cuenta-haber {
+  padding-left: 2.5rem !important;
+}
+.tabla-lineas select,
+.tabla-lineas input {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  font: inherit;
+}
+.tabla-lineas input {
+  text-align: right;
+}
+.tabla tfoot td {
+  font-weight: 700;
+  color: var(--azul-900);
+  border-top: 2px solid var(--borde);
+}
+.balance {
+  margin: 0.75rem 0 0;
+  font-weight: 600;
+}
+.balance-ok {
+  color: var(--verde);
+}
+.balance-error {
+  color: var(--rojo);
+}
+
+@media (max-width: 900px) {
+  .filtros-diario {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* ---------- Modo desarrollo (sin sesión) ---------- */
 .contenido-sin-menu {
   width: 100%;

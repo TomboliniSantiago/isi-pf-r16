@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError, OperationalError
 
 from app.errors import ErrorNegocio
-from app.routers import auth, clientes, dev_usuarios, plan_cuentas, proveedores, usuarios
+from app.routers import asientos, auth, clientes, dev_usuarios, plan_cuentas, proveedores, usuarios
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("eugenia")
@@ -17,6 +17,7 @@ app.include_router(usuarios.router)
 app.include_router(plan_cuentas.router)
 app.include_router(clientes.router)
 app.include_router(proveedores.router)
+app.include_router(asientos.router)
 app.include_router(dev_usuarios.router)  # sin inicio de sesión: solo para desarrollo
 
 
