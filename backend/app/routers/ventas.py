@@ -6,11 +6,10 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import origen_de, requiere_roles, usuario_habilitado
 from app.models import Cliente, EstadoVenta, Rol, Usuario, Venta
+from app.schemas_comprobantes import AsientoComprobanteOut, LineaPropuestaOut
 from app.schemas_ventas import (
-    AsientoVentaOut,
     ClienteVentaOut,
     CuentasVentaIn,
-    LineaPropuestaOut,
     PropuestaOut,
     VentaIn,
     VentaOut,
@@ -58,7 +57,7 @@ def _salidas(db: Session, ventas: list[Venta]) -> list[VentaOut]:
                 importe_total=v.importe_total,
                 cae=v.cae,
                 estado=v.estado,
-                asiento=AsientoVentaOut(
+                asiento=AsientoComprobanteOut(
                     id_asiento=asiento.id_asiento,
                     numero_asiento=asiento.numero_asiento,
                     estado=asiento.estado,
@@ -90,18 +89,7 @@ def propuesta(datos: VentaIn, _: Usuario = Depends(puede_editar), db: Session = 
     """Pasos 2-6: valida el comprobante, detecta duplicados (2.a) y devuelve el asiento propuesto, sin guardar."""
     p, duplicado = servicio.proponer(db, datos)
     return PropuestaOut(
-        lineas=[
-            LineaPropuestaOut(
-                rol=linea.rol,
-                descripcion=linea.descripcion,
-                id_cuenta=linea.cuenta.id_cuenta if linea.cuenta else None,
-                codigo=linea.cuenta.codigo if linea.cuenta else None,
-                nombre=linea.cuenta.nombre if linea.cuenta else None,
-                debe=linea.debe,
-                haber=linea.haber,
-            )
-            for linea in p.lineas
-        ],
+        lineas=[LineaPropuestaOut(**linea) for linea in p.lineas_out()],
         total_debe=p.total_debe,
         total_haber=p.total_haber,
         diferencia=p.total_debe - p.total_haber,

@@ -25,6 +25,7 @@ from app.models import (
     AsientoContable,
     Compra,
     CondicionIva,
+    EstadoCompra,
     Proveedor,
     Usuario,
 )
@@ -78,8 +79,10 @@ def comprobantes(db: Session, id_proveedor: int) -> list[tuple[Compra, bool]]:
     return [(compra, bool(es_asentada)) for compra, es_asentada in db.execute(consulta)]
 
 
-def es_pendiente(asentada: bool) -> bool:
-    """Pendiente de procesamiento: la compra todavía no tiene su asiento asentado."""
+def es_pendiente(compra: Compra, asentada: bool) -> bool:
+    """Pendiente de procesamiento: la compra todavía no tiene su asiento asentado. Una anulada no lo está."""
+    if compra.estado == EstadoCompra.ANULADA:
+        return False
     return not asentada
 
 
@@ -146,7 +149,7 @@ def verificar_baja(db: Session, id_proveedor: int) -> Proveedor:
     proveedor = obtener(db, id_proveedor)
     if not proveedor.esta_activo:
         raise ErrorNegocio(409, "El proveedor ya se encuentra dado de baja.")
-    pendientes = [c for c, asentada in comprobantes(db, id_proveedor) if es_pendiente(asentada)]
+    pendientes = [c for c, asentada in comprobantes(db, id_proveedor) if es_pendiente(c, asentada)]
     if pendientes:
         raise ErrorNegocio(
             409,

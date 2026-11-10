@@ -4,6 +4,7 @@ import { RutaProtegida } from "./auth/RutaProtegida";
 import { Layout } from "./components/Layout";
 import { CambiarPasswordPage } from "./pages/CambiarPasswordPage";
 import { ClientesPage } from "./pages/clientes/ClientesPage";
+import { ComprasPage } from "./pages/compras/ComprasPage";
 import { DevUsuariosPage } from "./pages/DevUsuariosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LibroDiarioPage } from "./pages/libro-diario/LibroDiarioPage";
@@ -46,6 +47,7 @@ export function App() {
             <Route path="clientes" element={<ClientesPage />} />
             <Route path="proveedores" element={<ProveedoresPage />} />
             <Route path="ventas" element={<VentasPage />} />
+            <Route path="compras" element={<ComprasPage />} />
             <Route
               path="usuarios"
               element={
