@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 005)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 006)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -125,8 +125,21 @@ class CuentaPredeterminada(Base):
     usuario: Mapped[str | None] = mapped_column(Unicode(255))
 
 
+class EstadoAsiento(StrEnum):
+    BORRADOR = "BORRADOR"  # pendiente: sin número ni efecto contable
+    ASENTADO = "ASENTADO"  # vigente
+    ANULADO = "ANULADO"  # revertido por un contra-asiento, o borrador descartado
+
+
+class OrigenAsiento(StrEnum):
+    MANUAL = "MANUAL"
+    VENTA = "VENTA"
+    COMPRA = "COMPRA"
+    REVERSION = "REVERSION"
+
+
 class AsientoContable(Base):
-    """Esquema base. Por ahora solo se lee (movimientos de una cuenta); se gestiona en CUU-003/004."""
+    """Esquema base + migración 006_asientos (CUU-003 / CUU-004)."""
 
     __tablename__ = "ASIENTO_CONTABLE"
 
@@ -138,6 +151,8 @@ class AsientoContable(Base):
     id_venta: Mapped[int | None] = mapped_column(Integer, ForeignKey("VENTA.id_venta"))
     id_compra: Mapped[int | None] = mapped_column(Integer, ForeignKey("COMPRA.id_compra"))
     estado: Mapped[str | None] = mapped_column(Unicode(255))
+    referencia: Mapped[str | None] = mapped_column(Unicode(255))
+    id_asiento_revertido: Mapped[int | None] = mapped_column(Integer, ForeignKey("ASIENTO_CONTABLE.id_asiento"))
 
 
 class DetalleAsiento(Base):
@@ -150,7 +165,7 @@ class DetalleAsiento(Base):
     haber: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
 
 
-ESTADO_ASIENTO_ASENTADO = "ASENTADO"
+ESTADO_ASIENTO_ASENTADO = EstadoAsiento.ASENTADO
 
 
 class CondicionIva(StrEnum):
