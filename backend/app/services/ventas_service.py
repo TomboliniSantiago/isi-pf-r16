@@ -214,7 +214,9 @@ def _propuesta(db: Session, datos: VentaIn) -> Propuesta:
 # ---------- Alta, modificación y contabilización ----------
 
 
-def crear(db: Session, datos: VentaIn, actor: Usuario, origen: str | None) -> Venta:
+def crear(db: Session, datos: VentaIn, actor: Usuario, origen: str | None, confirmar_transaccion: bool = True) -> Venta:
+    """confirmar_transaccion=False: lo guarda en la transacción en curso (lo usa el registro desde un
+    comprobante digital, CUU-016, que guarda en la misma transacción el documento y sus correcciones)."""
     emisor, cliente = _validar(db, datos)
     _rechazar_duplicado(db, datos, emisor.id_emisor)
     venta = Venta(id_emisor=emisor.id_emisor, moneda=MONEDA, cotizacion=Decimal("1"), estado=EstadoVenta.PENDIENTE)
@@ -232,7 +234,8 @@ def crear(db: Session, datos: VentaIn, actor: Usuario, origen: str | None) -> Ve
     )
     if datos.confirmar:
         _contabilizar(db, venta, datos, cliente, actor, origen)
-    asientos_service.confirmar_transaccion(db)
+    if confirmar_transaccion:
+        asientos_service.confirmar_transaccion(db)
     return venta
 
 

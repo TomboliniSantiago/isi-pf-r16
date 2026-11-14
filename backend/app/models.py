@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 008)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 009)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -307,6 +307,69 @@ class Compra(Base):
     def numero(self) -> str:
         """Ej.: 0003-00001520."""
         return f"{self.punto_venta or 0:04d}-{self.numero_comprobante or 0:08d}"
+
+
+class OperacionDocumento(StrEnum):
+    COMPRA = "COMPRA"
+    VENTA = "VENTA"
+
+
+class EstadoDocumento(StrEnum):
+    PENDIENTE_REVISION = "PENDIENTE_REVISION"  # extraído, a la espera de la revisión del usuario
+    REGISTRADO = "REGISTRADO"  # sus datos definitivos generaron una compra o venta
+    DESCARTADO = "DESCARTADO"  # baja lógica: el usuario lo descartó
+
+
+class TipoDocumento(Base):
+    """Esquema base. Solo se lee: el tipo del documento se asigna al registrarlo."""
+
+    __tablename__ = "TIPO_DOCUMENTO"
+
+    id_tipo_documento: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nombre: Mapped[str | None] = mapped_column(Unicode(255))
+    descripcion: Mapped[str | None] = mapped_column(Unicode(255))
+
+
+class Documento(Base):
+    """Comprobante digital (esquema base + migración 009_documentos). CUU-016."""
+
+    __tablename__ = "DOCUMENTO"
+
+    id_documento: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_tipo_documento: Mapped[int | None] = mapped_column(Integer, ForeignKey("TIPO_DOCUMENTO.id_tipo_documento"))
+    id_usuario: Mapped[int] = mapped_column(Integer, ForeignKey("USUARIO.id_usuario"))
+    nombre_archivo: Mapped[str | None] = mapped_column(Unicode(255))
+    ruta_archivo: Mapped[str | None] = mapped_column(Unicode(255))
+    # Comprobante generado al registrarlo: tabla (COMPRA / VENTA) e id.
+    tabla_asociada: Mapped[str | None] = mapped_column(Unicode(255))
+    id_registro_asociado: Mapped[int | None] = mapped_column(Integer)
+    fecha_carga: Mapped[datetime | None] = mapped_column(DateTime)
+    operacion: Mapped[str | None] = mapped_column(Unicode(10))
+    estado: Mapped[str | None] = mapped_column(Unicode(20))
+    tipo_contenido: Mapped[str | None] = mapped_column(Unicode(100))
+    tamanio_bytes: Mapped[int | None] = mapped_column(Integer)
+    hash_sha256: Mapped[str | None] = mapped_column(Unicode(64))
+    motor_ocr: Mapped[str | None] = mapped_column(Unicode(50))
+    confianza_ocr: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    aviso_ocr: Mapped[str | None] = mapped_column(Unicode(255))
+    texto_extraido: Mapped[str | None] = mapped_column(UnicodeText)
+    fecha_registro: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class DocumentoCampo(Base):
+    """Cada campo del comprobante: valor extraído por OCR/NLP, su confianza y el valor definitivo (migración 009)."""
+
+    __tablename__ = "DOCUMENTO_CAMPO"
+
+    id_documento_campo: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id_documento: Mapped[int] = mapped_column(Integer, ForeignKey("DOCUMENTO.id_documento"))
+    campo: Mapped[str] = mapped_column(Unicode(50))
+    valor_extraido: Mapped[str | None] = mapped_column(Unicode(255))
+    confianza: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    # Al registrar: valor definitivo, si difiere del extraído (corregido) y si el usuario lo revisó.
+    valor_final: Mapped[str | None] = mapped_column(Unicode(255))
+    corregido: Mapped[bool] = mapped_column(Boolean, default=False)
+    revisado: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AuditoriaLog(Base):

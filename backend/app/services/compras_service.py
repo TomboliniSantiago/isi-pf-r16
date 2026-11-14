@@ -224,7 +224,11 @@ def _propuesta(db: Session, datos: CompraIn) -> Propuesta:
 # ---------- Alta, modificación y contabilización ----------
 
 
-def crear(db: Session, datos: CompraIn, actor: Usuario, origen: str | None) -> Compra:
+def crear(
+    db: Session, datos: CompraIn, actor: Usuario, origen: str | None, confirmar_transaccion: bool = True
+) -> Compra:
+    """confirmar_transaccion=False: lo guarda en la transacción en curso (lo usa el registro desde un
+    comprobante digital, CUU-016, que guarda en la misma transacción el documento y sus correcciones)."""
     proveedor = _validar(db, datos)
     _rechazar_duplicado(db, datos)
     emisor = empresa_emisora(db)
@@ -243,7 +247,8 @@ def crear(db: Session, datos: CompraIn, actor: Usuario, origen: str | None) -> C
     )
     if datos.confirmar:
         _contabilizar(db, compra, datos, proveedor, actor, origen)
-    asientos_service.confirmar_transaccion(db)
+    if confirmar_transaccion:
+        asientos_service.confirmar_transaccion(db)
     return compra
 
 

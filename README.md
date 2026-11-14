@@ -7,7 +7,8 @@ Backend FastAPI (`backend/`) y frontend React + Vite (`frontend/`) sobre SQL Ser
 - Python 3.12
 - [ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
 - Node 20
-- Base de datos con las migraciones `001_seguridad_usuarios.sql` y `002_codigos_verificacion.sql` aplicadas (se comparten fuera del repositorio)
+- Base de datos con las migraciones `001` a `009` aplicadas en orden (se comparten fuera del repositorio)
+- Opcional, para leer comprobantes en imagen o PDF escaneado: [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) con el idioma español. Si no está en el PATH, indicar la ruta en `TESSERACT_CMD` del `.env`. Sin Tesseract, los PDF digitales se leen igual y las imágenes se completan a mano.
 
 ## Backend
 

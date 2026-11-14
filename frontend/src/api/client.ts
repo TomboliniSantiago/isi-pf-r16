@@ -49,14 +49,16 @@ export async function api<T>(ruta: string, { method = "GET", body }: Opciones = 
   const headers: Record<string, string> = { Accept: "application/json" };
   const token = tokenStore.get();
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  // Un FormData (carga de archivos) lo envía el navegador con su propio Content-Type multipart.
+  const esFormulario = body instanceof FormData;
+  if (body !== undefined && !esFormulario) headers["Content-Type"] = "application/json";
 
   let respuesta: Response;
   try {
     respuesta = await fetch(`/api${ruta}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : esFormulario ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, "No fue posible conectarse con el servidor.");
@@ -70,6 +72,23 @@ export async function api<T>(ruta: string, { method = "GET", body }: Opciones = 
     throw new ApiError(respuesta.status, mensaje);
   }
   return datos as T;
+}
+
+/** Descarga un archivo protegido (con el token de la sesión) como Blob. */
+export async function apiArchivo(ruta: string): Promise<Blob> {
+  const token = tokenStore.get();
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`/api${ruta}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError(0, "No fue posible conectarse con el servidor.");
+  }
+  if (!respuesta.ok) {
+    if (respuesta.status === 401 && token) alExpirarSesion?.();
+    const datos = await respuesta.json().catch(() => null);
+    throw new ApiError(respuesta.status, typeof datos?.detail === "string" ? datos.detail : "No fue posible obtener el archivo.");
+  }
+  return respuesta.blob();
 }
 
 export function mensajeDeError(error: unknown): string {

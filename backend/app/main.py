@@ -12,6 +12,7 @@ from app.routers import (
     clientes,
     compras,
     dev_usuarios,
+    documentos,
     libro_mayor,
     plan_cuentas,
     proveedores,
@@ -32,6 +33,7 @@ app.include_router(asientos.router)
 app.include_router(libro_mayor.router)
 app.include_router(ventas.router)
 app.include_router(compras.router)
+app.include_router(documentos.router)
 app.include_router(dev_usuarios.router)  # sin inicio de sesión: solo para desarrollo
 
 

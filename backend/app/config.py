@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     smtp_remitente: str = ""
     smtp_seguridad: Literal["starttls", "ssl", "ninguna"] = "starttls"
 
+    # Comprobantes digitales (CUU-016): carpeta del archivo original, tamaño máximo y OCR.
+    almacenamiento_dir: str = "almacenamiento"
+    comprobante_max_mb: int = 10
+    # Por debajo de este nivel de confianza (0 a 1) el campo exige revisión obligatoria (4.a).
+    ocr_umbral_confianza: float = 0.8
+    # Ruta del ejecutable de Tesseract si no está en el PATH (ej. C:\Program Files\Tesseract-OCR\tesseract.exe).
+    tesseract_cmd: str = ""
+
     @property
     def sqlalchemy_url(self) -> str:
         if self.database_url:

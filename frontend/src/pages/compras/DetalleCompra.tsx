@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { asientosApi, etiquetaEstado, type Asiento } from "../../api/asientos";
 import { mensajeDeError } from "../../api/client";
+import { documentosApi } from "../../api/documentos";
 import { formatearFechaContable, formatearImporte } from "../../api/planCuentas";
 import { etiquetaEstadoCompra, comprasApi, type Compra } from "../../api/compras";
 import { Alerta } from "../../components/Alerta";
@@ -17,6 +18,8 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
   const [compra, setCompra] = useState<Compra | null>(null);
   const [asiento, setAsiento] = useState<Asiento | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // CUU-016: documento digital del que surgió el comprobante, si lo hay.
+  const [idDocumento, setIdDocumento] = useState<number | null>(null);
 
   useEffect(() => {
     comprasApi
@@ -26,6 +29,10 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
         if (v.asiento) setAsiento(await asientosApi.obtener(v.asiento.id_asiento));
       })
       .catch((err) => setError(mensajeDeError(err)));
+    documentosApi
+      .listar({ tabla_asociada: "COMPRA", id_registro: idCompra })
+      .then((docs) => setIdDocumento(docs[0]?.id_documento ?? null))
+      .catch(() => setIdDocumento(null));
   }, [idCompra]);
 
   const importe = (v: string | null) => formatearImporte(v ?? 0);
@@ -72,6 +79,11 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
             </dd>
           </dl>
 
+          {idDocumento && (
+            <p>
+              <Link to={`/comprobantes-digitales?documento=${idDocumento}`}>Ver el comprobante digital original</Link>
+            </p>
+          )}
           <h3 className="subtitulo">Asiento contable</h3>
           {!compra.asiento && (
             <p className="texto-secundario">
