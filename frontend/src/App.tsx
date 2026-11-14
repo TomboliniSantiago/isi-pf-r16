@@ -6,6 +6,7 @@ import { CambiarPasswordPage } from "./pages/CambiarPasswordPage";
 import { ClientesPage } from "./pages/clientes/ClientesPage";
 import { ComprasPage } from "./pages/compras/ComprasPage";
 import { DevUsuariosPage } from "./pages/DevUsuariosPage";
+import { DocumentosPage } from "./pages/documentos/DocumentosPage";
 import { InicioPage } from "./pages/InicioPage";
 import { LibroDiarioPage } from "./pages/libro-diario/LibroDiarioPage";
 import { LibroMayorPage } from "./pages/libro-mayor/LibroMayorPage";
@@ -48,6 +49,7 @@ export function App() {
             <Route path="proveedores" element={<ProveedoresPage />} />
             <Route path="ventas" element={<VentasPage />} />
             <Route path="compras" element={<ComprasPage />} />
+            <Route path="comprobantes-digitales" element={<DocumentosPage />} />
             <Route
               path="usuarios"
               element={

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { asientosApi, etiquetaEstado, type Asiento } from "../../api/asientos";
 import { mensajeDeError } from "../../api/client";
+import { documentosApi } from "../../api/documentos";
 import { formatearFechaContable, formatearImporte } from "../../api/planCuentas";
 import { etiquetaEstadoVenta, ventasApi, type Venta } from "../../api/ventas";
 import { Alerta } from "../../components/Alerta";
@@ -17,6 +18,8 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
   const [venta, setVenta] = useState<Venta | null>(null);
   const [asiento, setAsiento] = useState<Asiento | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // CUU-016: documento digital del que surgió el comprobante, si lo hay.
+  const [idDocumento, setIdDocumento] = useState<number | null>(null);
 
   useEffect(() => {
     ventasApi
@@ -26,6 +29,10 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
         if (v.asiento) setAsiento(await asientosApi.obtener(v.asiento.id_asiento));
       })
       .catch((err) => setError(mensajeDeError(err)));
+    documentosApi
+      .listar({ tabla_asociada: "VENTA", id_registro: idVenta })
+      .then((docs) => setIdDocumento(docs[0]?.id_documento ?? null))
+      .catch(() => setIdDocumento(null));
   }, [idVenta]);
 
   const importe = (v: string | null) => formatearImporte(v ?? 0);
@@ -74,6 +81,11 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
             <dd>{venta.cae ?? "Sin validar con ARCA"}</dd>
           </dl>
 
+          {idDocumento && (
+            <p>
+              <Link to={`/comprobantes-digitales?documento=${idDocumento}`}>Ver el comprobante digital original</Link>
+            </p>
+          )}
           <h3 className="subtitulo">Asiento contable</h3>
           {!venta.asiento && (
             <p className="texto-secundario">
