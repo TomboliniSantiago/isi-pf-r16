@@ -4,7 +4,6 @@ import { mensajeDeError } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { Alerta } from "../components/Alerta";
 import { IngresoCodigo } from "../components/IngresoCodigo";
-import { Marca } from "../components/Marca";
 import type { Desafio } from "../types";
 
 interface EstadoNavegacion {
@@ -68,13 +67,15 @@ export function LoginPage() {
   return (
     <div className="login">
       <section className="login-panel" aria-hidden="true">
-        <Marca grande />
-        <p className="login-lema">Gestión contable inteligente, trazable y segura.</p>
-        <ul className="login-puntos">
-          <li>Registro contable con partida doble</li>
-          <li>Comprobantes digitalizados con OCR</li>
-          <li>Validación fiscal con ARCA</li>
-        </ul>
+        <img
+          src="/LogoEugenIA.png"
+          alt="EugenIA"
+          className="login-logo"
+          style={{ width: 250, height: "auto", display: "block", margin: "0 auto 0" }}
+        />
+        <p className="login-lema" style={{ textAlign: "center", marginLeft: "auto", marginRight: "auto", marginTop: 8, fontSize: "1.5rem" }}>
+          Gestión contable inteligente, trazable y segura.
+        </p>
       </section>
 
       <section className="login-formulario">
