@@ -29,7 +29,7 @@ class CorreoMemoria:
     def __init__(self):
         self.enviados: list[tuple[str, str, str]] = []
 
-    def enviar(self, destinatario: str, asunto: str, cuerpo: str) -> None:
+    def enviar(self, destinatario: str, asunto: str, cuerpo: str, html: str | None = None) -> None:
         self.enviados.append((destinatario, asunto, cuerpo))
 
     def ultimo_codigo(self, destinatario: str | None = None) -> str:

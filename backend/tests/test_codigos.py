@@ -122,7 +122,7 @@ def test_usuario_dado_de_baja_entre_pasos_no_ingresa(client, db, crear_usuario, 
 
 def test_falla_de_envio_no_deja_codigo_pendiente(client, db, crear_usuario):
     class CorreoCaido:
-        def enviar(self, *_):
+        def enviar(self, *_, **__):
             raise ErrorNegocio(503, "No fue posible enviar el código por correo. Intente nuevamente.")
 
     crear_usuario(EMAIL)

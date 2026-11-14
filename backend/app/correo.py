@@ -2,6 +2,7 @@
 
 CORREO_MODO=consola escribe el correo en el log (desarrollo, sin servidor SMTP).
 CORREO_MODO=smtp lo envía con smtplib (biblioteca estándar, sin dependencias externas).
+Si se pasa `html`, el correo sale multipart: texto plano de respaldo + versión HTML.
 """
 
 import logging
@@ -17,11 +18,11 @@ logger = logging.getLogger("eugenia.correo")
 
 
 class EnviadorCorreo(Protocol):
-    def enviar(self, destinatario: str, asunto: str, cuerpo: str) -> None: ...
+    def enviar(self, destinatario: str, asunto: str, cuerpo: str, html: str | None = None) -> None: ...
 
 
 class CorreoConsola:
-    def enviar(self, destinatario: str, asunto: str, cuerpo: str) -> None:
+    def enviar(self, destinatario: str, asunto: str, cuerpo: str, html: str | None = None) -> None:
         logger.warning("\n[CORREO SIMULADO] Para: %s\nAsunto: %s\n\n%s\n", destinatario, asunto, cuerpo)
 
 
@@ -29,12 +30,14 @@ class CorreoSmtp:
     def __init__(self, settings: Settings):
         self.s = settings
 
-    def enviar(self, destinatario: str, asunto: str, cuerpo: str) -> None:
+    def enviar(self, destinatario: str, asunto: str, cuerpo: str, html: str | None = None) -> None:
         mensaje = EmailMessage()
         mensaje["From"] = self.s.smtp_remitente or self.s.smtp_usuario
         mensaje["To"] = destinatario
         mensaje["Subject"] = asunto
         mensaje.set_content(cuerpo)
+        if html is not None:
+            mensaje.add_alternative(html, subtype="html")
         try:
             if self.s.smtp_seguridad == "ssl":
                 servidor: smtplib.SMTP = smtplib.SMTP_SSL(

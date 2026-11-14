@@ -22,6 +22,7 @@ from app.config import get_settings
 from app.correo import EnviadorCorreo
 from app.errors import ErrorNegocio
 from app.models import CodigoVerificacion, Proposito, Usuario
+from app.plantilla_correo import plantilla_html
 from app.tiempo import ahora
 
 TABLA = "USUARIO"
@@ -178,7 +179,14 @@ def _enviar(enviador: EnviadorCorreo, email: str, proposito: Proposito, codigo: 
         f"Vence en {minutos} minutos y puede usarse una sola vez.\n"
         "Si usted no realizó esta solicitud, ignore este mensaje e informe al administrador del sistema."
     )
-    enviador.enviar(email, f"EugenIA - {asunto}", cuerpo)
+    html = plantilla_html(
+        titulo=asunto,
+        parrafos=[f"Use el siguiente código para {accion} en EugenIA:"],
+        codigo=codigo,
+        vencimiento=f"Vence en {minutos} minutos y puede usarse una sola vez.",
+        aviso="Si usted no realizó esta solicitud, ignore este mensaje e informe al administrador del sistema.",
+    )
+    enviador.enviar(email, f"EugenIA - {asunto}", cuerpo, html=html)
 
 
 def _auditar(db: Session, accion: str, usuario: Usuario, proposito: Proposito, origen: str | None) -> None:
