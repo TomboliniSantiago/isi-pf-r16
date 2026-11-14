@@ -57,10 +57,8 @@ def plantilla_html(
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
  style="max-width:520px;background-color:#ffffff;border-radius:12px;border-collapse:separate;">
-<tr><td style="background-color:{_AZUL_OSCURO};border-radius:12px 12px 0 0;padding:24px 32px;">
+<tr><td valign="middle" style="background-color:{_AZUL_OSCURO};border-radius:12px 12px 0 0;padding:20px 32px;">
 <div style="font-family:{_FUENTE};font-size:24px;line-height:30px;color:#ffffff;">Eugen<b>IA</b></div>
-<div style="font-family:{_FUENTE};font-size:13px;line-height:18px;color:#cbd5e1;padding-top:4px;">
-Gestión contable inteligente, trazable y segura.</div>
 </td></tr>
 <tr><td style="padding:32px;">
 <h1 style="margin:0 0 8px 0;font-family:{_FUENTE};font-size:20px;line-height:28px;color:{_AZUL_OSCURO};">
