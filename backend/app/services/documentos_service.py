@@ -14,7 +14,7 @@ Flujo: cargar → extraer → revisar → corregir → registrar (borrador de co
 - Descartar es una baja lógica: el documento queda DESCARTADO con su archivo e historial.
 """
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import func, select
@@ -34,6 +34,7 @@ from app.models import (
     Usuario,
 )
 from app.ocr import interprete
+from app.ocr.interprete import CENTAVO
 from app.ocr.motor import TIPO_CONTENIDO, MotorOcr, detectar_formato
 from app.schemas_compras import CompraIn
 from app.schemas_documentos import RegistroDocumentoIn
@@ -78,7 +79,7 @@ def cargar(
 
     emisor = empresa_emisora(db)
     lectura = motor.leer(contenido, formato)
-    resultado = interprete.interpretar(lectura.texto, lectura.confianza, emisor.cuit, emisor.razon_social)
+    resultado = interprete.interpretar(lectura.texto, lectura.confianza, emisor.cuit, emisor.razon_social, operacion)
 
     documento = Documento(
         id_usuario=actor.id_usuario,
@@ -218,24 +219,29 @@ def registrar(
             + ".",
         )
 
+    cotizacion = datos.cotizacion or Decimal("1")
+    pesos = _en_pesos(datos, cotizacion)
+    moneda = {"moneda": datos.moneda, "cotizacion": cotizacion}
     if documento.operacion == OperacionDocumento.COMPRA:
         contraparte: Proveedor | Cliente | None = db.get(Proveedor, datos.id_contraparte)
         comprobante = compras_service.crear(
             db,
-            CompraIn(id_proveedor=datos.id_contraparte, condicion_compra=datos.condicion, **_importes(datos)),
+            CompraIn(id_proveedor=datos.id_contraparte, condicion_compra=datos.condicion, **_importes(datos, pesos)),
             actor,
             origen,
             confirmar_transaccion=False,
+            **moneda,
         )
         tabla, id_registro = "COMPRA", comprobante.id_compra
     else:
         contraparte = db.get(Cliente, datos.id_contraparte)
         comprobante = ventas_service.crear(
             db,
-            VentaIn(id_cliente=datos.id_contraparte, condicion_venta=datos.condicion, **_importes(datos)),
+            VentaIn(id_cliente=datos.id_contraparte, condicion_venta=datos.condicion, **_importes(datos, pesos)),
             actor,
             origen,
             confirmar_transaccion=False,
+            **moneda,
         )
         tabla, id_registro = "VENTA", comprobante.id_venta
 
@@ -276,6 +282,9 @@ def registrar(
         origen=origen,
         despues={
             "comprobante": f"{tabla} {id_registro}",
+            "moneda": datos.moneda,
+            "cotizacion": str(cotizacion),
+            "importes_en_pesos": {c: str(v) for c, v in pesos.items()},
             "campos_corregidos": sorted(corregidos),
             "campos_revisados": sorted(datos.campos_revisados),
         },
@@ -308,17 +317,27 @@ def descartar(db: Session, id_documento: int, actor: Usuario, origen: str | None
 # ---------- Auxiliares ----------
 
 
-def _importes(datos: RegistroDocumentoIn) -> dict[str, Any]:
+def _en_pesos(datos: RegistroDocumentoIn, cotizacion: Decimal) -> dict[str, Decimal]:
+    """Importes en pesos: cada uno por la cotización, redondeado al centavo. Si en la moneda original el total
+    es neto + IVA + otros, el total en pesos es la suma de los convertidos (el redondeo no lo desbalancea)."""
+    originales = {c: getattr(datos, c) for c in interprete.IMPORTES}
+    if cotizacion == 1:
+        return originales
+    pesos = {c: (v * cotizacion).quantize(CENTAVO, ROUND_HALF_UP) for c, v in originales.items()}
+    partes = ("importe_neto_gravado", "importe_iva", "importe_otros_impuestos")
+    if sum(originales[c] for c in partes) == originales["importe_total"]:
+        pesos["importe_total"] = sum((pesos[c] for c in partes), Decimal("0"))
+    return pesos
+
+
+def _importes(datos: RegistroDocumentoIn, pesos: dict[str, Decimal]) -> dict[str, Any]:
     return {
         "tipo_comprobante": datos.tipo_comprobante,
         "punto_venta": datos.punto_venta,
         "numero_comprobante": datos.numero_comprobante,
         "fecha_emision": datos.fecha_emision,
         "fecha_contable": datos.fecha_contable,
-        "importe_neto_gravado": datos.importe_neto_gravado,
-        "importe_iva": datos.importe_iva,
-        "importe_otros_impuestos": datos.importe_otros_impuestos,
-        "importe_total": datos.importe_total,
+        **pesos,
         "confirmar": False,  # borrador: se contabiliza después de revisar el asiento (CUU-001/002)
     }
 
@@ -335,12 +354,18 @@ def _valores_finales(datos: RegistroDocumentoIn, contraparte: Proveedor | Client
         "importe_iva": f"{datos.importe_iva:.2f}",
         "importe_otros_impuestos": f"{datos.importe_otros_impuestos:.2f}",
         "importe_total": f"{datos.importe_total:.2f}",
+        # Los importes quedan en la moneda del comprobante, como se extrajeron; la conversión está en la
+        # compra o venta (moneda, cotización e importes en pesos).
+        "moneda": datos.moneda,
+        "cotizacion": interprete.normalizar_cotizacion(str(datos.cotizacion or 1)),
     }
 
 
 def _iguales(campo: str, extraido: str | None, final: str | None) -> bool:
     if campo in interprete.IMPORTES:
         return interprete.a_decimal(extraido) == interprete.a_decimal(final)
+    if campo == "cotizacion":
+        return interprete.normalizar_cotizacion(extraido or "") == interprete.normalizar_cotizacion(final or "")
     if campo == "cuit":
         return "".join(ch for ch in extraido or "" if ch.isdigit()) == "".join(ch for ch in final or "" if ch.isdigit())
     return (extraido or "").strip().lower() == (final or "").strip().lower()
@@ -363,4 +388,5 @@ def resumen(campos: list[DocumentoCampo]) -> dict[str, str | None]:
         "numero": numero,
         "razon_social": valores.get("razon_social"),
         "importe_total": valores.get("importe_total"),
+        "moneda": valores.get("moneda"),
     }

@@ -7,6 +7,7 @@ import { formatearFechaContable, formatearImporte } from "../../api/planCuentas"
 import { etiquetaEstadoCompra, comprasApi, type Compra } from "../../api/compras";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
+import { MonedaComprobante } from "../../components/MonedaComprobante";
 
 interface Props {
   idCompra: number;
@@ -66,7 +67,9 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
             <dt>Condición de pago</dt>
             <dd>{compra.condicion_compra ?? "—"}</dd>
             <dt>Moneda</dt>
-            <dd>{compra.moneda ?? "—"}</dd>
+            <dd>
+              <MonedaComprobante moneda={compra.moneda} cotizacion={compra.cotizacion} />
+            </dd>
             <dt>Neto gravado</dt>
             <dd>{importe(compra.importe_neto_gravado)}</dd>
             <dt>IVA</dt>

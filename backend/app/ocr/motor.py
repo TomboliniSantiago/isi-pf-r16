@@ -1,6 +1,9 @@
 """Adaptador de OCR: obtiene el texto de un comprobante PDF o imagen, desacoplado de la lógica contable.
 
-- PDF con texto (las facturas electrónicas de ARCA lo son): se lee el texto con pypdf (confianza 1).
+- PDF con texto (las facturas electrónicas lo son): se lee el texto con pypdf (confianza 1), rearmando los
+  renglones según la posición de cada fragmento. Muchos generadores (Microsoft Print to PDF, Crystal Reports,
+  sistemas que imitan una impresora) escriben rótulos e importes por separado o un carácter por vez, y la
+  extracción estándar los devuelve desordenados.
 - Imagen (PNG/JPG) o PDF escaneado sin texto: se reconoce con Tesseract y la confianza es el promedio de
   la que informa Tesseract por palabra. Si Tesseract no está instalado, se devuelve un texto vacío con un
   aviso: el usuario completa los campos a mano (CUU-016 3.a).
@@ -10,15 +13,21 @@ Para sumar otro motor (por ejemplo, Google Vision) alcanza con otra implementaci
 
 import io
 import logging
+import statistics
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.config import get_settings
 from app.errors import ErrorNegocio
 
 log = logging.getLogger(__name__)
+
+# Huecos entre fragmentos de un renglón, medidos en avances de un carácter, a partir de los cuales hay un
+# espacio o un cambio de columna.
+HUECO_ESPACIO = 0.8
+HUECO_COLUMNA = 2.5
 
 
 class Formato(StrEnum):
@@ -69,7 +78,9 @@ class MotorPdfTesseract:
         try:
             lector = PdfReader(io.BytesIO(contenido))
             paginas = list(lector.pages)
-            texto = "\n".join(pagina.extract_text() or "" for pagina in paginas)
+            texto = "\n".join(_texto_por_posicion(pagina) for pagina in paginas)
+            if not texto.strip():  # sin posiciones utilizables: extracción estándar
+                texto = "\n".join(pagina.extract_text() or "" for pagina in paginas)
         except (PdfReadError, ValueError, KeyError) as exc:
             raise ErrorNegocio(422, "No se pudo leer el PDF: el archivo está dañado o protegido.") from exc
         if texto.strip():
@@ -114,6 +125,54 @@ class MotorPdfTesseract:
         confianza = sum(confianzas) / len(confianzas) if confianzas else None
         aviso = None if texto.strip() else "No se reconoció texto en la imagen."
         return TextoOcr(texto=texto, confianza=confianza, motor="tesseract", aviso=aviso)
+
+
+@dataclass
+class _Glifo:
+    x: float
+    y: float
+    texto: str
+    tamanio: float
+
+
+def _texto_por_posicion(pagina: Any) -> str:
+    """Rearma los renglones de una página según la posición de cada fragmento de texto.
+
+    Agrupa por altura (de arriba hacia abajo) y ordena por posición horizontal. El avance de un carácter se
+    estima como la mediana de la distancia entre caracteres consecutivos del renglón: un hueco de alrededor
+    de un carácter es un espacio y uno mayor, un cambio de columna (se marca con varios espacios).
+    """
+    glifos: list[_Glifo] = []
+
+    def visitar(texto: str, cm: list[float], tm: list[float], _fuente: Any, tamanio: float) -> None:
+        if texto and texto.strip():
+            x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
+            y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
+            glifos.append(_Glifo(x, y, texto.strip("\n"), tamanio * abs(tm[3] * cm[3]) or tamanio))
+
+    pagina.extract_text(visitor_text=visitar)
+    renglones: list[list[_Glifo]] = []
+    for glifo in sorted(glifos, key=lambda g: (-g.y, g.x)):
+        actual = renglones[-1] if renglones else None
+        if actual and abs(actual[0].y - glifo.y) <= max(1.0, 0.3 * glifo.tamanio):
+            actual.append(glifo)
+        else:
+            renglones.append([glifo])
+    return "\n".join(_unir_renglon(sorted(renglon, key=lambda g: g.x)) for renglon in renglones)
+
+
+def _unir_renglon(glifos: list[_Glifo]) -> str:
+    distancias = [b.x - a.x for a, b in zip(glifos, glifos[1:], strict=False) if len(a.texto) == 1 and b.x > a.x]
+    avance = statistics.median(distancias) if distancias else 0.5 * glifos[0].tamanio
+    partes = [glifos[0].texto]
+    for anterior, glifo in zip(glifos, glifos[1:], strict=False):
+        hueco = (glifo.x - anterior.x) / avance - len(anterior.texto) if avance > 0 else 0
+        if hueco >= HUECO_COLUMNA:
+            partes.append("   ")
+        elif hueco >= HUECO_ESPACIO:
+            partes.append(" ")
+        partes.append(glifo.texto)
+    return "".join(partes)
 
 
 def _texto_por_lineas(resultado: dict) -> str:

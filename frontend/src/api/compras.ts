@@ -58,6 +58,8 @@ export interface Compra {
   fecha_contable: string | null;
   condicion_compra: string | null;
   moneda: string | null;
+  /** Cotización del comprobante original si estaba en moneda extranjera; los importes están en pesos. */
+  cotizacion: string | null;
   importe_neto_gravado: string | null;
   importe_iva: string | null;
   importe_otros_impuestos: string | null;

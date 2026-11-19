@@ -214,12 +214,22 @@ def _propuesta(db: Session, datos: VentaIn) -> Propuesta:
 # ---------- Alta, modificación y contabilización ----------
 
 
-def crear(db: Session, datos: VentaIn, actor: Usuario, origen: str | None, confirmar_transaccion: bool = True) -> Venta:
+def crear(
+    db: Session,
+    datos: VentaIn,
+    actor: Usuario,
+    origen: str | None,
+    confirmar_transaccion: bool = True,
+    moneda: str = MONEDA,
+    cotizacion: Decimal = Decimal("1"),
+) -> Venta:
     """confirmar_transaccion=False: lo guarda en la transacción en curso (lo usa el registro desde un
-    comprobante digital, CUU-016, que guarda en la misma transacción el documento y sus correcciones)."""
+    comprobante digital, CUU-016, que guarda en la misma transacción el documento y sus correcciones).
+    moneda y cotizacion: las del comprobante original cuando está en moneda extranjera (CUU-016). Los importes
+    de la venta y su asiento siempre están en pesos."""
     emisor, cliente = _validar(db, datos)
     _rechazar_duplicado(db, datos, emisor.id_emisor)
-    venta = Venta(id_emisor=emisor.id_emisor, moneda=MONEDA, cotizacion=Decimal("1"), estado=EstadoVenta.PENDIENTE)
+    venta = Venta(id_emisor=emisor.id_emisor, moneda=moneda, cotizacion=cotizacion, estado=EstadoVenta.PENDIENTE)
     _aplicar(venta, datos)
     db.add(venta)
     db.flush()
