@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.correo import EnviadorCorreo, get_enviador
 from app.db import get_db
-from app.deps import origen_de, usuario_autenticado
+from app.deps import Sesion, origen_de, sesion_actual, usuario_autenticado
 from app.models import Usuario
 from app.schemas import (
     CambiarPasswordIn,
@@ -72,10 +72,8 @@ def confirmar_recupero(datos: RecuperoConfirmarIn, request: Request, db: Session
 
 
 @router.post("/logout", status_code=204)
-def logout(
-    request: Request, usuario: Usuario = Depends(usuario_autenticado), db: Session = Depends(get_db)
-) -> Response:
-    auth_service.cerrar_sesion(db, usuario, origen_de(request))
+def logout(request: Request, sesion: Sesion = Depends(sesion_actual), db: Session = Depends(get_db)) -> Response:
+    auth_service.cerrar_sesion(db, sesion.usuario, sesion.token, origen_de(request))
     return Response(status_code=204)
 
 

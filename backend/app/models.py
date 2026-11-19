@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 009)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 010)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -66,6 +66,19 @@ class CodigoVerificacion(Base):
     fecha_creacion: Mapped[datetime] = mapped_column(DateTime)
     expira: Mapped[datetime] = mapped_column(DateTime)
     usado_en: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class SesionRevocada(Base):
+    """Token cerrado con logout antes de vencer (migración 010_sesiones_revocadas).
+    Se guarda el jti del token, nunca el token completo."""
+
+    __tablename__ = "SESION_REVOCADA"
+
+    id_sesion_revocada: Mapped[int] = mapped_column(Integer, primary_key=True)
+    jti: Mapped[str] = mapped_column(Unicode(64), unique=True)
+    id_usuario: Mapped[int] = mapped_column(Integer, ForeignKey("USUARIO.id_usuario"))
+    expira: Mapped[datetime] = mapped_column(DateTime)  # vencimiento original del token
+    fecha_revocacion: Mapped[datetime] = mapped_column(DateTime)
 
 
 class TipoCuenta(StrEnum):

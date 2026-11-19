@@ -10,8 +10,8 @@ from app import auditoria
 from app.config import get_settings
 from app.correo import EnviadorCorreo
 from app.errors import ErrorNegocio
-from app.models import Proposito, Usuario
-from app.security import hash_password, validar_politica, verificar_password
+from app.models import Proposito, SesionRevocada, Usuario
+from app.security import DatosToken, hash_password, validar_politica, verificar_password
 from app.services import codigos_service
 from app.services.codigos_service import Desafio
 from app.tiempo import ahora
@@ -103,7 +103,10 @@ def cambiar_password(
     return usuario
 
 
-def cerrar_sesion(db: Session, usuario: Usuario, origen: str | None) -> None:
+def cerrar_sesion(db: Session, usuario: Usuario, token: DatosToken, origen: str | None) -> None:
+    """Revoca el token de esta sesión: deja de aceptarse aunque no haya vencido. Las demás sesiones
+    del usuario (otros dispositivos) siguen vigentes."""
+    db.add(SesionRevocada(jti=token.jti, id_usuario=usuario.id_usuario, expira=token.expira, fecha_revocacion=ahora()))
     auditoria.registrar(
         db, accion="LOGOUT", tabla=TABLA, id_registro=usuario.id_usuario, actor=usuario.email, origen=origen
     )

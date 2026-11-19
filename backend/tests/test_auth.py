@@ -4,8 +4,9 @@ import json
 from datetime import timedelta
 
 from conftest import PASSWORD, auditorias
+from sqlalchemy import select
 
-from app.models import INACTIVO, Rol
+from app.models import INACTIVO, Rol, SesionRevocada
 from app.tiempo import ahora
 
 
@@ -108,6 +109,38 @@ def test_logout_queda_auditado(client, db, crear_usuario, login):
     r = client.post("/api/auth/logout", headers=login("conta@eugenia.com.ar"))
     assert r.status_code == 204
     assert len(auditorias(db, "LOGOUT")) == 1
+
+
+def test_logout_invalida_el_token(client, db, crear_usuario, login):
+    usuario = crear_usuario("conta@eugenia.com.ar")
+    headers = login("conta@eugenia.com.ar")
+    assert client.post("/api/auth/logout", headers=headers).status_code == 204
+
+    r = client.get("/api/auth/me", headers=headers)
+    assert r.status_code == 401
+    assert "cerrada" in r.json()["detail"]
+    assert client.post("/api/auth/logout", headers=headers).status_code == 401
+
+    revocadas = db.scalars(select(SesionRevocada)).all()
+    assert len(revocadas) == 1
+    assert revocadas[0].id_usuario == usuario.id_usuario
+    assert revocadas[0].expira > revocadas[0].fecha_revocacion
+
+
+def test_logout_no_cierra_otras_sesiones(client, crear_usuario, login):
+    crear_usuario("conta@eugenia.com.ar")
+    sesion_1 = login("conta@eugenia.com.ar")
+    sesion_2 = login("conta@eugenia.com.ar")
+    assert client.post("/api/auth/logout", headers=sesion_1).status_code == 204
+
+    assert client.get("/api/auth/me", headers=sesion_1).status_code == 401
+    assert client.get("/api/auth/me", headers=sesion_2).status_code == 200
+
+
+def test_tras_logout_se_puede_volver_a_ingresar(client, crear_usuario, login):
+    crear_usuario("conta@eugenia.com.ar")
+    client.post("/api/auth/logout", headers=login("conta@eugenia.com.ar"))
+    assert client.get("/api/auth/me", headers=login("conta@eugenia.com.ar")).status_code == 200
 
 
 def test_password_temporal_obliga_a_cambiarla(client, db, crear_usuario, login):
