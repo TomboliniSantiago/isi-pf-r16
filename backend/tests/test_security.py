@@ -51,13 +51,28 @@ def test_password_temporal_cumple_politica_y_es_aleatoria():
 
 def test_token_ida_y_vuelta():
     token, vigencia = crear_token(42)
-    assert leer_token(token) == 42
+    datos = leer_token(token)
+    assert datos.id_usuario == 42
+    assert len(datos.jti) == 32
     assert vigencia == get_settings().jwt_expire_minutes * 60
 
 
+def test_cada_token_tiene_su_propio_jti():
+    assert leer_token(crear_token(42)[0]).jti != leer_token(crear_token(42)[0]).jti
+
+
 def test_token_vencido_o_adulterado_es_rechazado():
-    vencido = jwt.encode({"sub": "1", "exp": 0}, get_settings().jwt_secret, algorithm="HS256")
+    vencido = jwt.encode({"sub": "1", "jti": "x", "exp": 0}, get_settings().jwt_secret, algorithm="HS256")
     with pytest.raises(ErrorNegocio, match="expiró"):
         leer_token(vencido)
     with pytest.raises(ErrorNegocio, match="inválida"):
-        leer_token(jwt.encode({"sub": "1", "exp": 9999999999}, "otro-secreto-con-largo-suficiente-xx", "HS256"))
+        leer_token(
+            jwt.encode({"sub": "1", "jti": "x", "exp": 9999999999}, "otro-secreto-con-largo-suficiente-xx", "HS256")
+        )
+
+
+def test_token_sin_jti_es_rechazado():
+    """Los tokens emitidos antes de este cambio no tienen jti y no podrían revocarse."""
+    sin_jti = jwt.encode({"sub": "1", "exp": 9999999999}, get_settings().jwt_secret, algorithm="HS256")
+    with pytest.raises(ErrorNegocio, match="inválida"):
+        leer_token(sin_jti)

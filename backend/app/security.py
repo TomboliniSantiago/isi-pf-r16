@@ -1,5 +1,6 @@
 import secrets
 import string
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -51,24 +52,38 @@ def generar_password_temporal(longitud: int = 12) -> str:
             return password
 
 
+@dataclass(frozen=True)
+class DatosToken:
+    id_usuario: int
+    jti: str  # identificador único de la sesión: el logout lo revoca
+    expira: datetime  # UTC sin zona, como se persiste en la base
+
+
 def crear_token(id_usuario: int) -> tuple[str, int]:
     """Devuelve el token de acceso y su vigencia en segundos."""
     settings = get_settings()
     emitido = datetime.now(UTC)
     vigencia = timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(id_usuario), "iat": emitido, "exp": emitido + vigencia}
+    payload = {"sub": str(id_usuario), "jti": secrets.token_hex(16), "iat": emitido, "exp": emitido + vigencia}
     token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
     return token, int(vigencia.total_seconds())
 
 
-def leer_token(token: str) -> int:
-    """Devuelve el id de usuario del token o lanza ErrorNegocio 401."""
+def leer_token(token: str) -> DatosToken:
+    """Devuelve los datos del token o lanza ErrorNegocio 401. No consulta si la sesión fue cerrada."""
     settings = get_settings()
     try:
         payload = jwt.decode(
-            token, settings.jwt_secret, algorithms=[settings.jwt_algorithm], options={"require": ["exp", "sub"]}
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+            options={"require": ["exp", "sub", "jti"]},
         )
-        return int(payload["sub"])
+        return DatosToken(
+            id_usuario=int(payload["sub"]),
+            jti=str(payload["jti"]),
+            expira=datetime.fromtimestamp(payload["exp"], UTC).replace(tzinfo=None),
+        )
     except jwt.ExpiredSignatureError as exc:
         raise ErrorNegocio(401, "La sesión expiró. Inicie sesión nuevamente.") from exc
     except (jwt.InvalidTokenError, ValueError) as exc:
