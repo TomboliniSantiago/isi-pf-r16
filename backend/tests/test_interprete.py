@@ -1,13 +1,22 @@
 """CUU-016 pasos 3-4: interpretación del texto de un comprobante y validaciones automáticas."""
 
+import io
 from datetime import date
 
 import pytest
-from pdf_prueba import factura_arca, factura_en_dolares, factura_preimpresa, pdf_con_texto, pdf_por_caracter
+from pdf_prueba import (
+    factura_arca,
+    factura_en_dolares,
+    factura_preimpresa,
+    pdf_con_texto,
+    pdf_con_trazos,
+    pdf_por_caracter,
+)
+from PIL import Image
 
 from app.errors import ErrorNegocio
 from app.ocr.interprete import interpretar, normalizar_cotizacion, normalizar_importe, validar
-from app.ocr.motor import Formato, MotorPdfTesseract, detectar_formato
+from app.ocr.motor import DPI_RENDERIZADO, Formato, MotorPdfTesseract, TextoOcr, detectar_formato
 
 EMPRESA = ("30-71458213-1", "Distribuidora Andina S.A.")
 
@@ -145,6 +154,27 @@ def test_lectura_de_pdf_con_texto():
 def test_pdf_danado():
     with pytest.raises(ErrorNegocio):
         MotorPdfTesseract().leer(b"%PDF-1.4 basura", Formato.PDF)
+
+
+def test_pdf_sin_texto_se_reconoce_la_pagina_renderizada(monkeypatch):
+    """Lo dibujado como trazos (no solo las imágenes incrustadas) llega a Tesseract, a 300 dpi."""
+    recibidas = []
+    monkeypatch.setattr(
+        MotorPdfTesseract,
+        "_reconocer_imagenes",
+        lambda self, imagenes: recibidas.extend(imagenes) or TextoOcr(texto="", confianza=None, motor="tesseract"),
+    )
+    MotorPdfTesseract().leer(pdf_con_trazos(), Formato.PDF)
+
+    assert len(recibidas) == 1
+    with Image.open(io.BytesIO(recibidas[0])) as pagina:
+        escala = DPI_RENDERIZADO / 72
+        ancho, alto = pagina.size
+        assert abs(ancho - 595 * escala) <= 1 and abs(alto - 842 * escala) <= 1  # A4 a 300 dpi
+        gris = pagina.convert("L")
+        # El rectángulo (100..300 x 700..750 pt, origen abajo) se ve negro; fuera de él, blanco.
+        assert gris.getpixel((round(200 * escala), round((842 - 725) * escala))) < 50
+        assert gris.getpixel((round(400 * escala), round(400 * escala))) > 200
 
 
 # ---------- PDF con un carácter por posición y facturas preimpresas ----------
@@ -357,6 +387,15 @@ def test_encabezado_iva_de_la_tabla_no_toma_el_renglon_siguiente():
         (["Importes expresados en: Dólares", "Cotización: $ 1.545,50"], "USD", "1545.5", 0.95),
         (["Moneda: EUR", "Cotización: 1680,2575"], "EUR", "1680.2575", 0.95),
         (["Importe Total: u$s 100.00", "tipo de cambio consignado de 1,545.50"], "USD", "1545.5", 0.8),
+        (["TOTAL FOB: USD$ 20.66"], "USD", None, 0.8),
+        (["SUBTOTAL US$ 50.00"], "USD", None, 0.8),
+        # Dólares solo en la descripción de una factura en pesos: no definen la moneda.
+        (
+            ["Equivalente al 0.025% de VN u$s 35.903.000,-", "u$s 8.975.75 TC divisa 1.516,-", "TOTAL 13,607,237.00"],
+            "ARS",
+            "1",
+            0.85,
+        ),
     ],
 )
 def test_moneda_y_cotizacion(lineas, moneda, cotizacion, confianza):

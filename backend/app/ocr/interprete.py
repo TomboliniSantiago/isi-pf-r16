@@ -435,6 +435,12 @@ _NOMBRES_MONEDA = (
     (r"Pesos?(?:\s+argentinos?)?|ARS", PESOS),
 )
 
+# Un importe rotulado (total, neto o subtotal) con prefijo de dólares en el mismo renglón. Un "u$s" suelto, por
+# ejemplo en la descripción de una factura en pesos ("u$s 8.975,75 TC 1.516"), no define la moneda.
+_IMPORTE_ROTULADO_EN_DOLARES = (
+    r"(?:(?<![\w-])TOTAL|Neto\s+Gravado|SUB-?\s*TOTAL)[^\n\d]*?(?:U\$S|US\$|\bUSD)[ \t]*\$?[ \t]*\d"
+)
+
 
 def _moneda_y_cotizacion(texto: str) -> dict[str, tuple[str | None, float]]:
     """Moneda en que está expresado el comprobante y su cotización. Sin indicación, pesos (cotización 1)."""
@@ -445,7 +451,7 @@ def _moneda_y_cotizacion(texto: str) -> dict[str, tuple[str | None, float]]:
             moneda = next(c for p, c in _NOMBRES_MONEDA if re.fullmatch(p, m.group(1), re.IGNORECASE))
             conf_moneda = 0.95
             break
-    if moneda is None and re.search(r"[uU]\$[sS]|US\$|\bUSD\b", texto):
+    if moneda is None and re.search(_IMPORTE_ROTULADO_EN_DOLARES, texto, re.IGNORECASE):
         moneda, conf_moneda = "USD", 0.8  # importes con prefijo de dólares, sin rótulo de moneda
     if moneda is None or moneda == PESOS:
         # Sin indicación se asume pesos, con confianza suficiente para no exigir revisión.
