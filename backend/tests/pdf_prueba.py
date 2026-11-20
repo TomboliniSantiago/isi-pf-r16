@@ -36,6 +36,12 @@ def pdf_por_caracter(lineas: list[str], avance: float = 7.5, interlineado: float
     return _pdf(b"".join(instrucciones))
 
 
+def pdf_con_trazos() -> bytes:
+    """PDF sin texto, con un rectángulo negro dibujado como trazo (como las letras de un PDF impreso desde un
+    escritorio remoto): de (100, 700) a (300, 750) en puntos, origen abajo a la izquierda."""
+    return _pdf(b"0 g 100 700 200 50 re f")
+
+
 def _pdf(flujo: bytes) -> bytes:
     objetos = [
         b"<< /Type /Catalog /Pages 2 0 R >>",

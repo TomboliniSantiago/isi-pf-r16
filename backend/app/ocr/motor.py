@@ -4,8 +4,10 @@
   renglones según la posición de cada fragmento. Muchos generadores (Microsoft Print to PDF, Crystal Reports,
   sistemas que imitan una impresora) escriben rótulos e importes por separado o un carácter por vez, y la
   extracción estándar los devuelve desordenados.
-- Imagen (PNG/JPG) o PDF escaneado sin texto: se reconoce con Tesseract y la confianza es el promedio de
-  la que informa Tesseract por palabra. Si Tesseract no está instalado, se devuelve un texto vacío con un
+- Imagen (PNG/JPG) o PDF sin texto: se reconoce con Tesseract y la confianza es el promedio de la que
+  informa Tesseract por palabra. Las páginas del PDF se renderizan completas con pypdfium2: un PDF escaneado,
+  o uno impreso desde un escritorio remoto (las letras quedan como trazos sobre un formulario de fondo),
+  solo se lee bien tal como se ve. Si Tesseract no está instalado, se devuelve un texto vacío con un
   aviso: el usuario completa los campos a mano (CUU-016 3.a).
 
 Para sumar otro motor (por ejemplo, Google Vision) alcanza con otra implementación de `MotorOcr`.
@@ -28,6 +30,9 @@ log = logging.getLogger(__name__)
 # espacio o un cambio de columna.
 HUECO_ESPACIO = 0.8
 HUECO_COLUMNA = 2.5
+
+# Resolución con que se renderizan las páginas de un PDF sin texto para reconocerlas con Tesseract.
+DPI_RENDERIZADO = 300
 
 
 class Formato(StrEnum):
@@ -85,11 +90,8 @@ class MotorPdfTesseract:
             raise ErrorNegocio(422, "No se pudo leer el PDF: el archivo está dañado o protegido.") from exc
         if texto.strip():
             return TextoOcr(texto=texto, confianza=1.0, motor="pdf-texto")
-        # PDF escaneado: se reconocen las imágenes de sus páginas.
-        imagenes = [imagen.data for pagina in paginas for imagen in pagina.images]
-        if not imagenes:
-            return TextoOcr(texto="", confianza=None, motor="pdf-texto", aviso="El PDF no contiene texto ni imágenes.")
-        return self._reconocer_imagenes(imagenes)
+        # Sin texto (escaneado, o con las letras dibujadas como trazos): se reconoce cada página renderizada.
+        return self._reconocer_imagenes(_renderizar_paginas(contenido))
 
     def _reconocer_imagenes(self, imagenes: list[bytes]) -> TextoOcr:
         import pytesseract
@@ -125,6 +127,26 @@ class MotorPdfTesseract:
         confianza = sum(confianzas) / len(confianzas) if confianzas else None
         aviso = None if texto.strip() else "No se reconoció texto en la imagen."
         return TextoOcr(texto=texto, confianza=confianza, motor="tesseract", aviso=aviso)
+
+
+def _renderizar_paginas(contenido: bytes) -> list[bytes]:
+    """Cada página del PDF como imagen PNG en escala de grises, tal como se ve: fondo escaneado más lo que
+    esté dibujado encima. Leer solo las imágenes incrustadas pierde los datos impresos sobre un formulario."""
+    import pypdfium2 as pdfium
+
+    try:
+        documento = pdfium.PdfDocument(contenido)
+    except pdfium.PdfiumError as exc:
+        raise ErrorNegocio(422, "No se pudo leer el PDF: el archivo está dañado o protegido.") from exc
+    try:
+        imagenes = []
+        for pagina in documento:
+            salida = io.BytesIO()
+            pagina.render(scale=DPI_RENDERIZADO / 72, grayscale=True).to_pil().save(salida, format="PNG")
+            imagenes.append(salida.getvalue())
+        return imagenes
+    finally:
+        documento.close()
 
 
 @dataclass
