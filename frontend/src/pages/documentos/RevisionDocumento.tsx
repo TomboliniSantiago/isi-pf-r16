@@ -3,10 +3,14 @@ import { mensajeDeError } from "../../api/client";
 import type { Cliente } from "../../api/clientes";
 import { CONDICIONES_PAGO, type CondicionPago } from "../../api/compras";
 import {
+  MONEDAS,
+  convertirAPesos,
   documentosApi,
+  formatearEnMoneda,
   nivelConfianza,
   type CampoDocumento,
   type Documento,
+  type Moneda,
   type RegistroDocumento,
 } from "../../api/documentos";
 import { formatearImporte } from "../../api/planCuentas";
@@ -37,8 +41,12 @@ const EDITABLES = [
   "importe_iva",
   "importe_otros_impuestos",
   "importe_total",
+  "moneda",
+  "cotizacion",
 ] as const;
 const IMPORTES = new Set(["importe_neto_gravado", "importe_iva", "importe_otros_impuestos", "importe_total"]);
+// Documentos cargados antes de reconocer la moneda: no tienen esos campos y se asumen en pesos.
+const POR_DEFECTO: Record<string, string> = { moneda: "ARS", cotizacion: "1" };
 
 const idDe = (c: Proveedor | Cliente) => ("id_proveedor" in c ? c.id_proveedor : c.id_cliente);
 
@@ -54,9 +62,10 @@ function aCentavos(valor: string): number {
 export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistrado, onDescartado, onContraparteCreada }: Props) {
   const esCompra = documento.operacion === "COMPRA";
   const campos = Object.fromEntries(documento.campos.map((c) => [c.campo, c])) as Record<string, CampoDocumento>;
-  const [valores, setValores] = useState<Record<string, string>>(() =>
-    Object.fromEntries(documento.campos.map((c) => [c.campo, c.valor_extraido ?? ""])),
-  );
+  const [valores, setValores] = useState<Record<string, string>>(() => ({
+    ...POR_DEFECTO,
+    ...Object.fromEntries(documento.campos.map((c) => [c.campo, c.valor_extraido ?? POR_DEFECTO[c.campo] ?? ""])),
+  }));
   const [revisados, setRevisados] = useState<Set<string>>(new Set());
   const sugerida = documento.contraparte_sugerida;
   const [idContraparte, setIdContraparte] = useState(sugerida?.activo ? String(sugerida.id) : "");
@@ -71,6 +80,22 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
   const suma = ["importe_neto_gravado", "importe_iva", "importe_otros_impuestos"].reduce((s, c) => s + aCentavos(valores[c]), 0);
   const diferencia = aCentavos(valores.importe_total) - suma;
   const nombre = esCompra ? "proveedor" : "cliente";
+  const moneda = (valores.moneda || "ARS") as Moneda;
+  const extranjera = moneda !== "ARS";
+  const cotizacion = Number((valores.cotizacion || "").replace(",", "."));
+  const cotizacionValida = Number.isFinite(cotizacion) && cotizacion > 0;
+  const enPesos =
+    extranjera && cotizacionValida
+      ? convertirAPesos(
+          {
+            neto: aCentavos(valores.importe_neto_gravado),
+            iva: aCentavos(valores.importe_iva),
+            otros: aCentavos(valores.importe_otros_impuestos),
+            total: aCentavos(valores.importe_total),
+          },
+          cotizacion,
+        )
+      : null;
 
   function cambiar(campo: string, valor: string) {
     setValores((prev) => ({ ...prev, [campo]: valor }));
@@ -95,6 +120,7 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
       const centavos = aCentavos(valores[c]);
       if (Number.isNaN(centavos) || centavos < 0) return `El importe de ${campos[c]?.etiqueta ?? c} no es válido.`;
     }
+    if (extranjera && !cotizacionValida) return "Indique la cotización para convertir los importes a pesos.";
     if (pendientes.length) return `Revise los campos marcados: ${pendientes.map((c) => campos[c]?.etiqueta ?? c).join(", ")}.`;
     return null;
   }
@@ -118,6 +144,8 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
       importe_iva: importe(valores.importe_iva),
       importe_otros_impuestos: importe(valores.importe_otros_impuestos),
       importe_total: importe(valores.importe_total),
+      moneda,
+      cotizacion: extranjera ? String(cotizacion) : null,
       campos_revisados: [...revisados],
     };
     setError(null);
@@ -190,6 +218,28 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
     }
     if (campo === "fecha_emision") {
       return <input type="date" value={valores[campo]} onChange={(e) => cambiar(campo, e.target.value)} />;
+    }
+    if (campo === "moneda") {
+      return (
+        <select value={moneda} onChange={(e) => cambiar(campo, e.target.value)}>
+          {MONEDAS.map((m) => (
+            <option key={m.valor} value={m.valor}>
+              {m.etiqueta}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (campo === "cotizacion") {
+      return (
+        <input
+          inputMode="decimal"
+          value={extranjera ? valores[campo] : "1"}
+          disabled={!extranjera}
+          onChange={(e) => cambiar(campo, e.target.value)}
+          placeholder="Pesos por unidad"
+        />
+      );
     }
     const numerico = campo === "punto_venta" || campo === "numero_comprobante";
     return (
@@ -314,10 +364,21 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
           <p className={valores.importe_total && diferencia === 0 ? "balance balance-ok" : "balance balance-error"}>
             {diferencia === 0
               ? "El total coincide con neto + IVA + otros impuestos."
-              : `El total no coincide con neto + IVA + otros impuestos: diferencia de ${formatearImporte(
+              : `El total no coincide con neto + IVA + otros impuestos: diferencia de ${formatearEnMoneda(
                   Math.abs(Number.isNaN(diferencia) ? 0 : diferencia) / 100,
+                  moneda,
                 )}.`}
           </p>
+          {extranjera && (
+            <p className="texto-secundario">
+              {enPesos
+                ? `Se registra en pesos con la cotización: neto ${formatearImporte(enPesos.neto / 100)}, IVA ${formatearImporte(
+                    enPesos.iva / 100,
+                  )}, otros ${formatearImporte(enPesos.otros / 100)}, total ${formatearImporte(enPesos.total / 100)}.`
+                : "Indique la cotización para ver los importes en pesos."}{" "}
+              El documento conserva los importes en {moneda}.
+            </p>
+          )}
 
           <div className="campos-fila">
             <label className="campo">

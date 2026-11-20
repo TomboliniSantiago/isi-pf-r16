@@ -51,6 +51,7 @@ def _salidas(db: Session, ventas: list[Venta]) -> list[VentaOut]:
                 fecha_contable=v.fecha_contable,
                 condicion_venta=v.condicion_venta,
                 moneda=v.moneda,
+                cotizacion=v.cotizacion,
                 importe_neto_gravado=v.importe_neto_gravado,
                 importe_iva=v.importe_iva,
                 importe_otros_impuestos=v.importe_otros_impuestos,

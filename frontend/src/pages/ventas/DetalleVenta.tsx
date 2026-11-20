@@ -7,6 +7,7 @@ import { formatearFechaContable, formatearImporte } from "../../api/planCuentas"
 import { etiquetaEstadoVenta, ventasApi, type Venta } from "../../api/ventas";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
+import { MonedaComprobante } from "../../components/MonedaComprobante";
 
 interface Props {
   idVenta: number;
@@ -66,7 +67,9 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
             <dt>Condición de cobro</dt>
             <dd>{venta.condicion_venta ?? "—"}</dd>
             <dt>Moneda</dt>
-            <dd>{venta.moneda ?? "—"}</dd>
+            <dd>
+              <MonedaComprobante moneda={venta.moneda} cotizacion={venta.cotizacion} />
+            </dd>
             <dt>Neto gravado</dt>
             <dd>{importe(venta.importe_neto_gravado)}</dd>
             <dt>IVA</dt>

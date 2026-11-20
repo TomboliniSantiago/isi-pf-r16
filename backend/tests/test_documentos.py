@@ -1,8 +1,10 @@
 """CUU-016 Registrar comprobante con OCR/NLP: carga, revisión, corrección y registro."""
 
+from decimal import Decimal
+
 import pytest
 from conftest import auditorias
-from pdf_prueba import factura_arca, pdf_con_texto
+from pdf_prueba import factura_arca, factura_en_dolares, pdf_con_texto
 
 from app import almacenamiento
 from app.config import get_settings
@@ -135,6 +137,17 @@ def test_carga_de_factura_pdf_extrae_los_datos(client, db, contador, base, carpe
     assert len(auditorias(db, "ALTA")) == 1
 
 
+@pytest.mark.parametrize(("operacion", "neto", "iva"), [("COMPRA", "1210.00", "0.00"), ("VENTA", "1000.00", "210.00")])
+def test_factura_b_toma_el_iva_segun_la_operacion(client, contador, base, operacion, neto, iva):
+    lineas = factura_arca(codigo="06", letra="B", total="1.210,00")
+    lineas = [linea for linea in lineas if not linea.startswith(("Importe Neto", "IVA 21%"))]
+    r = _cargar(client, contador, pdf_con_texto([*lineas, "IVA Contenido: $ 210,00"]), operacion=operacion)
+    assert r.status_code == 201, r.text
+    campos = _campos(r.json())
+    assert campos["importe_neto_gravado"]["valor_extraido"] == neto
+    assert campos["importe_iva"]["valor_extraido"] == iva
+
+
 def test_formato_no_soportado(client, contador, base):  # 2.a
     r = _cargar(client, contador, b"PK\x03\x04 un zip", nombre="factura.zip")
     assert r.status_code == 422 and "PDF, PNG o JPG" in r.json()["detail"]
@@ -166,7 +179,9 @@ def test_imagen_sin_ocr_disponible_se_completa_a_mano(client, contador, base, mo
         json=_registro(base, campos_revisados=[c["campo"] for c in doc["campos"]]),
     )
     assert r.status_code == 200, r.text
-    assert all(c["corregido"] for c in r.json()["campos"] if c["campo"] != "importe_otros_impuestos")
+    # Sin texto, otros impuestos (0), moneda (pesos) y cotización (1) toman el valor por defecto, que coincide.
+    por_defecto = {"importe_otros_impuestos", "moneda", "cotizacion"}
+    assert all(c["corregido"] for c in r.json()["campos"] if c["campo"] not in por_defecto)
 
 
 # ---------- Revisión obligatoria (4.a / 6.a) ----------
@@ -302,3 +317,81 @@ def test_consulta_no_carga_pero_puede_ver(client, crear_usuario, login, contador
 
 def test_sin_sesion(client, base):
     assert client.get(URL).status_code == 401
+
+
+# ---------- Moneda extranjera: se registra en pesos con la cotización ----------
+
+
+def _registro_en_dolares(base, **extra):
+    datos = {
+        "id_contraparte": base["cliente"],
+        "numero_comprobante": 4512,
+        "fecha_emision": "2026-11-05",
+        "condicion": "Contado",
+        "importe_neto_gravado": "28172.00",
+        "importe_iva": "5916.12",
+        "importe_total": "34088.12",
+        "moneda": "USD",
+        "cotizacion": "1545.5",
+    }
+    return _registro(base, **{**datos, **extra})
+
+
+def test_venta_en_dolares_se_registra_en_pesos(client, db, contador, base):
+    doc = _cargar(client, contador, pdf_con_texto(factura_en_dolares()), operacion="VENTA").json()
+    campos = _campos(doc)
+    assert (campos["moneda"]["valor_extraido"], campos["cotizacion"]["valor_extraido"]) == ("USD", "1545.5")
+    assert campos["importe_total"]["valor_extraido"] == "34088.12"
+    assert doc["contraparte_sugerida"]["id"] == base["cliente"]
+
+    r = client.post(f"{URL}/{doc['id_documento']}/registrar", headers=contador, json=_registro_en_dolares(base))
+    assert r.status_code == 200, r.text
+    venta = db.query(Venta).one()
+    assert (venta.moneda, venta.cotizacion) == ("USD", Decimal("1545.5"))
+    assert venta.importe_neto_gravado == Decimal("43539826.00")
+    assert venta.importe_iva == Decimal("9143363.46")
+    assert venta.importe_total == Decimal("52683189.46")  # el total en pesos que declara la factura
+    # El documento conserva los importes en dólares, sin correcciones.
+    finales = _campos(r.json())
+    assert finales["importe_total"]["valor_final"] == "34088.12"
+    assert not any(c["corregido"] for c in finales.values())
+    assert client.get(f"/api/ventas/{venta.id_venta}", headers=contador).json()["cotizacion"] == "1545.500000"
+
+
+def test_moneda_extranjera_sin_cotizacion_no_se_registra(client, db, contador, base):
+    doc = _cargar(client, contador, pdf_con_texto(factura_en_dolares()), operacion="VENTA").json()
+    datos = _registro_en_dolares(base)
+    del datos["cotizacion"]
+    r = client.post(f"{URL}/{doc['id_documento']}/registrar", headers=contador, json=datos)
+    assert r.status_code == 422
+    assert db.query(Venta).count() == 0
+
+
+def test_conversion_no_desbalancea_por_redondeo(client, db, contador, base):
+    """1,15 + 0,25 = 1,40 a 1,5: 1,73 + 0,38 = 2,11 (y no 2,10, que daría 1,40 × 1,5)."""
+    doc = _cargar(client, contador, pdf_con_texto(factura_en_dolares()), operacion="VENTA").json()
+    campos_revisados = [c["campo"] for c in doc["campos"]]
+    datos = _registro_en_dolares(
+        base,
+        importe_neto_gravado="1.15",
+        importe_iva="0.25",
+        importe_total="1.40",
+        cotizacion="1.5",
+        campos_revisados=campos_revisados,
+    )
+    r = client.post(f"{URL}/{doc['id_documento']}/registrar", headers=contador, json=datos)
+    assert r.status_code == 200, r.text
+    venta = db.query(Venta).one()
+    assert (venta.importe_neto_gravado, venta.importe_iva, venta.importe_total) == (
+        Decimal("1.73"),
+        Decimal("0.38"),
+        Decimal("2.11"),
+    )
+
+
+def test_registro_en_pesos_guarda_cotizacion_uno(client, db, contador, base):
+    doc = _cargar(client, contador, pdf_con_texto(factura_arca())).json()
+    r = client.post(f"{URL}/{doc['id_documento']}/registrar", headers=contador, json=_registro(base))
+    assert r.status_code == 200, r.text
+    compra = db.query(Compra).one()
+    assert (compra.moneda, compra.cotizacion, compra.importe_total) == ("ARS", Decimal("1"), Decimal("1210.00"))

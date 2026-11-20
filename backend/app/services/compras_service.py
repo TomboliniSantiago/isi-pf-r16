@@ -225,14 +225,22 @@ def _propuesta(db: Session, datos: CompraIn) -> Propuesta:
 
 
 def crear(
-    db: Session, datos: CompraIn, actor: Usuario, origen: str | None, confirmar_transaccion: bool = True
+    db: Session,
+    datos: CompraIn,
+    actor: Usuario,
+    origen: str | None,
+    confirmar_transaccion: bool = True,
+    moneda: str = MONEDA,
+    cotizacion: Decimal = Decimal("1"),
 ) -> Compra:
     """confirmar_transaccion=False: lo guarda en la transacción en curso (lo usa el registro desde un
-    comprobante digital, CUU-016, que guarda en la misma transacción el documento y sus correcciones)."""
+    comprobante digital, CUU-016, que guarda en la misma transacción el documento y sus correcciones).
+    moneda y cotizacion: las del comprobante original cuando está en moneda extranjera (CUU-016). Los importes
+    de la compra y su asiento siempre están en pesos."""
     proveedor = _validar(db, datos)
     _rechazar_duplicado(db, datos)
     emisor = empresa_emisora(db)
-    compra = Compra(id_emisor=emisor.id_emisor, moneda=MONEDA, cotizacion=Decimal("1"), estado=EstadoCompra.PENDIENTE)
+    compra = Compra(id_emisor=emisor.id_emisor, moneda=moneda, cotizacion=cotizacion, estado=EstadoCompra.PENDIENTE)
     _aplicar(compra, datos)
     db.add(compra)
     db.flush()

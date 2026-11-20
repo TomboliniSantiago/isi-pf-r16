@@ -57,6 +57,8 @@ class VentaOut(BaseModel):
     fecha_contable: date | None
     condicion_venta: str | None
     moneda: str | None
+    # Cotización del comprobante original si estaba en moneda extranjera; los importes están en pesos.
+    cotizacion: Decimal | None
     importe_neto_gravado: Decimal | None
     importe_iva: Decimal | None
     importe_otros_impuestos: Decimal | None

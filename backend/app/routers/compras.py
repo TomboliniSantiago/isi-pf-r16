@@ -44,6 +44,7 @@ def _salidas(db: Session, compras: list[Compra]) -> list[CompraOut]:
                 fecha_contable=c.fecha_contable,
                 condicion_compra=c.condicion_compra,
                 moneda=c.moneda,
+                cotizacion=c.cotizacion,
                 importe_neto_gravado=c.importe_neto_gravado,
                 importe_iva=c.importe_iva,
                 importe_otros_impuestos=c.importe_otros_impuestos,

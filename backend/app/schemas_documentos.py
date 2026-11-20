@@ -2,8 +2,9 @@
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas_asientos import Importe
 from app.schemas_comprobantes import CondicionPago, TipoComprobante
@@ -76,6 +77,8 @@ class DocumentoResumenOut(BaseModel):
     numero: str | None
     razon_social: str | None
     importe_total: str | None
+    # Moneda del total (los documentos cargados antes de reconocer la moneda no la tienen: pesos).
+    moneda: str | None = None
 
 
 class RegistroDocumentoIn(BaseModel):
@@ -94,5 +97,17 @@ class RegistroDocumentoIn(BaseModel):
     importe_iva: Importe = Decimal("0")
     importe_otros_impuestos: Importe = Decimal("0")
     importe_total: Importe
+    # Moneda del comprobante: los importes anteriores están expresados en ella. Si no es pesos, se convierten
+    # a pesos con la cotización al registrar la compra o venta.
+    moneda: Literal["ARS", "USD", "EUR"] = "ARS"
+    cotizacion: Decimal | None = Field(default=None, gt=0, max_digits=15, decimal_places=6)
     # 4.a / 6.a: campos marcados para revisión obligatoria que el usuario revisó.
     campos_revisados: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _cotizacion_segun_moneda(self) -> "RegistroDocumentoIn":
+        if self.moneda == "ARS":
+            self.cotizacion = Decimal("1")
+        elif self.cotizacion is None:
+            raise ValueError("Indique la cotización: el comprobante está en moneda extranjera.")
+        return self

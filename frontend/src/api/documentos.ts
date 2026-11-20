@@ -70,6 +70,39 @@ export interface DocumentoResumen {
   numero: string | null;
   razon_social: string | null;
   importe_total: string | null;
+  /** Moneda del total; null en documentos anteriores (pesos). */
+  moneda: Moneda | null;
+}
+
+export type Moneda = "ARS" | "USD" | "EUR";
+
+export const MONEDAS: { valor: Moneda; etiqueta: string }[] = [
+  { valor: "ARS", etiqueta: "Pesos (ARS)" },
+  { valor: "USD", etiqueta: "Dólares (USD)" },
+  { valor: "EUR", etiqueta: "Euros (EUR)" },
+];
+
+/** Importe con el símbolo de su moneda (pesos si no se indica). */
+export function formatearEnMoneda(valor: string | number, moneda: string | null | undefined): string {
+  const codigo = moneda && MONEDAS.some((m) => m.valor === moneda) ? moneda : "ARS";
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: codigo }).format(Number(valor));
+}
+
+/**
+ * Importes en pesos, como los convierte el backend al registrar: cada uno por la cotización, redondeado al
+ * centavo; si en la moneda original el total es la suma de las partes, el total en pesos es la suma convertida.
+ * Recibe y devuelve centavos.
+ */
+export function convertirAPesos(
+  centavos: { neto: number; iva: number; otros: number; total: number },
+  cotizacion: number,
+): { neto: number; iva: number; otros: number; total: number } {
+  const convertir = (c: number) => Math.round(c * cotizacion);
+  const neto = convertir(centavos.neto);
+  const iva = convertir(centavos.iva);
+  const otros = convertir(centavos.otros);
+  const cuadra = centavos.neto + centavos.iva + centavos.otros === centavos.total;
+  return { neto, iva, otros, total: cuadra ? neto + iva + otros : convertir(centavos.total) };
 }
 
 export interface RegistroDocumento {
@@ -84,6 +117,9 @@ export interface RegistroDocumento {
   importe_iva: string;
   importe_otros_impuestos: string;
   importe_total: string;
+  /** Los importes están en esta moneda; si no es pesos, el backend los convierte con la cotización. */
+  moneda: Moneda;
+  cotizacion: string | null;
   campos_revisados: string[];
 }
 

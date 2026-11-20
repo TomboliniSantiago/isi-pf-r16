@@ -10,7 +10,10 @@ La contraparte se distingue de la empresa por exclusión: en una compra, el CUIT
 son los de la empresa emisora son los del proveedor; en una venta, los del cliente.
 
 Validaciones automáticas (paso 4 / 6.a): formato de punto de venta y número, fecha, dígito verificador del
-CUIT, alícuota de IVA habitual y neto + IVA + otros tributos = total.
+CUIT, alícuota de IVA habitual, neto + IVA + otros tributos = total y cotización en moneda extranjera.
+
+Moneda: los importes se extraen en la moneda del comprobante, junto con la moneda y la cotización que informa.
+La conversión a pesos se hace al registrar (la contabilidad se lleva en pesos).
 """
 
 import re
@@ -31,6 +34,8 @@ CAMPOS = (
     "importe_iva",
     "importe_otros_impuestos",
     "importe_total",
+    "moneda",
+    "cotizacion",
 )
 ETIQUETAS = {
     "cuit": "CUIT",
@@ -43,14 +48,22 @@ ETIQUETAS = {
     "importe_iva": "IVA",
     "importe_otros_impuestos": "Otros impuestos",
     "importe_total": "Total",
+    "moneda": "Moneda",
+    "cotizacion": "Cotización",
 }
 IMPORTES = ("importe_neto_gravado", "importe_iva", "importe_otros_impuestos", "importe_total")
+PESOS = "ARS"
+MONEDAS = {PESOS: "Pesos", "USD": "Dólares", "EUR": "Euros"}
 # Códigos de comprobante de ARCA: 1 Factura A, 6 Factura B, 11 Factura C.
 CODIGOS_FACTURA = {1: "Factura A", 6: "Factura B", 11: "Factura C"}
 ALICUOTAS_IVA = (Decimal("0"), Decimal("0.025"), Decimal("0.05"), Decimal("0.105"), Decimal("0.21"), Decimal("0.27"))
 CENTAVO = Decimal("0.01")
 
-_IMPORTE = r"\$?\s*(-?[\d.,]*\d)"
+# Prefijo de moneda opcional ($, ARS$, u$s, US$, USD, €) y el número, en el mismo renglón.
+_IMPORTE = r"(?:ARS\$?|[uU]\$[sS]|US\$|USD|EUR|€|\$)?[ \t]*(-?[\d.,]*\d)"
+# Un número seguido de "%" es una alícuota, no un importe.
+_NO_ALICUOTA = r"(?![\d.,]*\s*%)"
+_ETIQUETA_HTML = re.compile(r"</?[a-zA-Z][a-zA-Z0-9]*(?:\s[^<>\n]*)?/?>")
 
 
 @dataclass
@@ -75,21 +88,29 @@ class Interpretacion:
 
 
 def interpretar(
-    texto: str, confianza_ocr: float | None, cuit_empresa: str | None, razon_social_empresa: str | None
+    texto: str,
+    confianza_ocr: float | None,
+    cuit_empresa: str | None,
+    razon_social_empresa: str | None,
+    operacion: str | None = None,
 ) -> Interpretacion:
+    """operacion (COMPRA / VENTA) define cómo se toma el IVA de las Facturas B y C (ver _iva_segun_tipo)."""
     factor = confianza_ocr if confianza_ocr is not None else 0.0
-    plano = texto or ""
+    # Algunos generadores dejan etiquetas HTML como texto ("<b>Razón social:</b>").
+    plano = _ETIQUETA_HTML.sub("", texto or "")
     encontrados: dict[str, tuple[str | None, float]] = {
         "cuit": _cuit(plano, cuit_empresa),
         "razon_social": _razon_social(plano, razon_social_empresa),
         "tipo_comprobante": _tipo(plano),
         **_punto_y_numero(plano),
         "fecha_emision": _fecha(plano),
-        "importe_neto_gravado": _importe(plano, [r"(?:Importe\s+)?Neto\s+Gravado"], 0.95),
+        "importe_neto_gravado": _neto(plano),
         "importe_iva": _iva(plano),
         "importe_otros_impuestos": _otros(plano),
         "importe_total": _total(plano),
+        **_moneda_y_cotizacion(plano),
     }
+    encontrados.update(_iva_segun_tipo(plano, encontrados, operacion))
     campos = {
         nombre: Campo(valor, round(conf * factor, 4) if valor is not None else 0.0)
         for nombre, (valor, conf) in encontrados.items()
@@ -152,6 +173,21 @@ def validar(valores: dict[str, str | None], hoy: date | None = None) -> list[Val
                     "advertencia",
                 )
             )
+
+    moneda = valores.get("moneda")
+    if moneda and moneda not in MONEDAS:
+        resultado.append(
+            Validacion("moneda", f"La moneda {moneda} no está admitida (pesos, dólares o euros).", ["moneda"])
+        )
+    elif moneda and moneda != PESOS and not normalizar_cotizacion(valores.get("cotizacion") or ""):
+        resultado.append(
+            Validacion(
+                "cotizacion",
+                f"El comprobante está expresado en {MONEDAS[moneda].lower()}: indique la cotización para convertir "
+                "los importes a pesos.",
+                ["moneda", "cotizacion"],
+            )
+        )
     return resultado
 
 
@@ -171,6 +207,19 @@ def a_decimal(valor: str | None) -> Decimal | None:
 
 def normalizar_importe(texto: str) -> str | None:
     """'1.234.567,89' / '1234567,89' / '1,234,567.89' / '1234567.89' → '1234567.89'."""
+    valor = _a_numero(texto)
+    return f"{valor.quantize(CENTAVO):.2f}" if valor is not None else None
+
+
+def normalizar_cotizacion(texto: str) -> str | None:
+    """Como normalizar_importe, pero conserva hasta 6 decimales: '1,545.50' → '1545.5'."""
+    valor = _a_numero(texto)
+    if valor is None or valor <= 0:
+        return None
+    return format(valor.quantize(Decimal("0.000001")).normalize(), "f")
+
+
+def _a_numero(texto: str) -> Decimal | None:
     t = texto.strip().replace(" ", "")
     if "," in t and "." in t:
         t = t.replace(".", "").replace(",", ".") if t.rfind(",") > t.rfind(".") else t.replace(",", "")
@@ -178,8 +227,10 @@ def normalizar_importe(texto: str) -> str | None:
         t = t.replace(".", "").replace(",", ".") if t.count(",") == 1 else t.replace(",", "")
     elif t.count(".") > 1 or (t.count(".") == 1 and len(t.split(".")[1]) == 3):
         t = t.replace(".", "")
-    valor = a_decimal(t)
-    return f"{valor:.2f}" if valor is not None else None
+    try:
+        return Decimal(t) if t else None
+    except InvalidOperation:
+        return None
 
 
 # ---------- Reconocimiento de cada campo: (valor, confianza del patrón) ----------
@@ -211,7 +262,9 @@ def _cuit(texto: str, cuit_empresa: str | None) -> tuple[str | None, float]:
 def _razon_social(texto: str, razon_social_empresa: str | None) -> tuple[str | None, float]:
     propia = (razon_social_empresa or "").strip().lower()
     for m in re.finditer(r"Raz[oó]n\s+Social\s*:?[ \t]*([^\n]+)", texto, re.IGNORECASE):
-        valor = re.split(r"\s{2,}|\s+(?:Domicilio|CUIT|Fecha|Condici[oó]n)\b", m.group(1).strip(), maxsplit=1)[0]
+        # Algunos sistemas anteponen el código interno del cliente: "00701 - ROBERTO FEDERICO EMILIANO".
+        sin_codigo = re.sub(r"^\d+\s*-\s*", "", m.group(1).strip())
+        valor = re.split(r"\s{2,}|\s+(?:Domicilio|CUIT|Fecha|Condici[oó]n)\b", sin_codigo, maxsplit=1)[0]
         valor = valor.strip(" :-")
         if valor and valor.lower() != propia:
             return valor[:255], 0.8
@@ -227,6 +280,18 @@ def _tipo(texto: str) -> tuple[str | None, float]:
 
 
 def _punto_y_numero(texto: str) -> dict[str, tuple[str | None, float]]:
+    # "Comp. Nro: 2000-00423216", "FACTURA: 0006-00014511", "Nº: 0023-00008908": punto de venta y número
+    # juntos detrás de un rótulo de comprobante.
+    rotulado = re.search(
+        r"(?:Comp(?:robante)?\.?\s*N(?:ro|°|º|o)\.?|\bFACTURA|\bN(?:ro|°|º)\.?)\s*:?\s*(\d{4,5})\s*-\s*(\d{8})(?!\d)",
+        texto,
+        re.IGNORECASE,
+    )
+    if rotulado:
+        return {
+            "punto_venta": (str(int(rotulado.group(1))), 0.9),
+            "numero_comprobante": (str(int(rotulado.group(2))), 0.9),
+        }
     pv, conf_pv = _primero(texto, [(r"Punto\s+de\s+Venta\s*:?\s*(\d{1,5})\b", 0.95)])
     nro, conf_nro = _primero(texto, [(r"Comp(?:robante)?\.?\s*N(?:ro|°|º|o)\.?\s*:?\s*(\d{1,8})\b", 0.95)])
     if not (pv and nro):
@@ -242,18 +307,39 @@ def _punto_y_numero(texto: str) -> dict[str, tuple[str | None, float]]:
     }
 
 
+_FECHA = r"(\d{1,2}\s*[/.-]\s*\d{1,2}\s*[/.-]\s*(?:\d{4}|\d{2}))(?!\d)"
+# Fechas que no son la de emisión: no se toman con el patrón genérico.
+_OTRAS_FECHAS = re.compile(r"(?:Inicio\s+(?:de\s+)?Actividades|Vto|Vencimiento|Desde|Hasta)\b[^\n]*$", re.IGNORECASE)
+
+
 def _fecha(texto: str) -> tuple[str | None, float]:
     m, confianza = _primero(
         texto,
-        [(r"Fecha\s+de\s+Emisi[oó]n\s*:?\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})", 0.95), (r"(\d{1,2}/\d{1,2}/\d{4})", 0.6)],
+        [
+            (r"Fecha\s+(?:de\s+)?Emisi[oó]n\s*:?\s*" + _FECHA, 0.95),
+            # "Fecha:" sola (facturas preimpresas): la de emisión.
+            (r"\bFecha\s*:\s*" + _FECHA, 0.85),
+        ],
     )
     if not m:
+        m, confianza = _fecha_generica(texto), 0.6
+    if not m:
         return None, 0.0
+    crudo = re.sub(r"\s+", "", m.group(1))
     try:
-        valor = datetime.strptime(re.sub(r"[.-]", "/", m.group(1)), "%d/%m/%Y").date()
+        valor = datetime.strptime(re.sub(r"[.-]", "/", crudo), "%d/%m/%Y" if len(crudo) > 8 else "%d/%m/%y").date()
     except ValueError:
-        return m.group(1), 0.2
+        return crudo, 0.2
     return valor.isoformat(), confianza
+
+
+def _fecha_generica(texto: str) -> re.Match[str] | None:
+    """Primera fecha con año de cuatro dígitos que no sea de inicio de actividades ni de un vencimiento."""
+    for m in re.finditer(r"(\d{1,2}/\d{1,2}/\d{4})", texto):
+        inicio_renglon = texto.rfind("\n", 0, m.start()) + 1
+        if not _OTRAS_FECHAS.search(texto[inicio_renglon : m.start()]):
+            return m
+    return None
 
 
 def _importe(texto: str, rotulos: list[str], confianza: float) -> tuple[str | None, float]:
@@ -275,7 +361,45 @@ def _iva(texto: str) -> tuple[str | None, float]:
     montos_validos = [Decimal(v) for v in montos if v is not None]
     if montos_validos:
         return f"{sum(montos_validos):.2f}", 0.95
-    return _importe(texto, [r"\bI\.?V\.?A\.?(?:\s+Inscripto)?"], 0.7)
+    # "IVA : 21.00   42,520.66" (alícuota sin "%" seguida del importe): se toma el importe, no la alícuota.
+    for m in re.finditer(r"\bI\.?V\.?A\.?\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)\s+" + _IMPORTE, texto, re.IGNORECASE):
+        alicuota, importe = a_decimal(normalizar_importe(m.group(1))), normalizar_importe(m.group(2))
+        if alicuota is not None and alicuota / 100 in ALICUOTAS_IVA and importe is not None:
+            return importe, 0.85
+    # Rótulo genérico, con el importe en el mismo renglón (el encabezado "IVA" de una tabla no toma el código
+    # de producto del renglón siguiente). Nunca toma una alícuota ("Importe IVA 10.5%" sin importe queda vacío).
+    for m in re.finditer(
+        r"\bI\.?V\.?A\.?(?:[ \t]+Inscripto)?[ \t]*:?[ \t]*" + _IMPORTE + _NO_ALICUOTA, texto, re.IGNORECASE
+    ):
+        valor = normalizar_importe(m.group(1))
+        if valor is not None:
+            return valor, 0.7
+    return None, 0.0
+
+
+def _iva_segun_tipo(
+    texto: str, encontrados: dict[str, tuple[str | None, float]], operacion: str | None
+) -> dict[str, tuple[str | None, float]]:
+    """Facturas B y C, que no discriminan IVA (mismas reglas que CUU-001/002):
+    - Compra B o C y venta C: el IVA es cero y el neto, el total.
+    - Venta B: el IVA es el "IVA Contenido" que informa la factura (Ley 27.743) y el neto, el total menos ese IVA.
+    Las confianzas derivadas no superan la del tipo ni la del total, de los que dependen."""
+    tipo, conf_tipo = encontrados["tipo_comprobante"]
+    total, conf_total = encontrados["importe_total"]
+    if operacion is None or tipo not in ("Factura B", "Factura C"):
+        return {}
+    conf = min(conf_tipo, conf_total) if total is not None else 0.0
+    neto_total = (total, conf) if total is not None else (None, 0.0)
+    if operacion == "COMPRA" or tipo == "Factura C":
+        return {"importe_iva": ("0.00", conf_tipo), "importe_neto_gravado": neto_total}
+    contenido, conf_contenido = _importe(texto, [r"IVA\s+Contenido"], 0.9)
+    if contenido is None:
+        return {"importe_iva": (None, 0.0), "importe_neto_gravado": (None, 0.0)}
+    neto = a_decimal(total) - Decimal(contenido) if total is not None else None
+    return {
+        "importe_iva": (contenido, min(conf_contenido, conf_tipo)),
+        "importe_neto_gravado": (f"{neto:.2f}", min(conf, conf_contenido)) if neto is not None else (None, 0.0),
+    }
 
 
 def _otros(texto: str) -> tuple[str | None, float]:
@@ -288,4 +412,52 @@ def _total(texto: str) -> tuple[str | None, float]:
     valor, confianza = _importe(texto, [r"Importe\s+Total"], 0.95)
     if valor is not None:
         return valor, confianza
-    return _importe(texto, [r"\bTOTAL"], 0.7)
+    # "TOTAL" suelto, sin tomar "SUB-TOTAL" ni "SUBTOTAL".
+    return _importe(texto, [r"(?<![\w-])TOTAL"], 0.7)
+
+
+def _neto(texto: str) -> tuple[str | None, float]:
+    valor, confianza = _importe(texto, [r"(?:Importe\s+)?Neto\s+Gravado"], 0.95)
+    if valor is not None:
+        return valor, confianza
+    # Sin rótulo de neto gravado: el último subtotal (después de descuentos). Confianza baja: puede incluir
+    # conceptos no gravados, el usuario lo revisa.
+    for m in reversed(list(re.finditer(r"\bSUB-?\s*TOTAL\s*:?\s*" + _IMPORTE, texto, re.IGNORECASE))):
+        valor = normalizar_importe(m.group(1))
+        if valor is not None:
+            return valor, 0.7
+    return None, 0.0
+
+
+_NOMBRES_MONEDA = (
+    (r"D[oó]lar(?:es)?(?:\s+estadounidenses?)?|U\$S|US\$|USD", "USD"),
+    (r"Euros?|EUR|€", "EUR"),
+    (r"Pesos?(?:\s+argentinos?)?|ARS", PESOS),
+)
+
+
+def _moneda_y_cotizacion(texto: str) -> dict[str, tuple[str | None, float]]:
+    """Moneda en que está expresado el comprobante y su cotización. Sin indicación, pesos (cotización 1)."""
+    moneda, conf_moneda = None, 0.0
+    for rotulo in (r"(?:Importes?\s+)?expresados?\s+en", r"\bMoneda"):
+        m = re.search(rotulo + r"\s*:?\s*(" + "|".join(p for p, _ in _NOMBRES_MONEDA) + r")", texto, re.IGNORECASE)
+        if m:
+            moneda = next(c for p, c in _NOMBRES_MONEDA if re.fullmatch(p, m.group(1), re.IGNORECASE))
+            conf_moneda = 0.95
+            break
+    if moneda is None and re.search(r"[uU]\$[sS]|US\$|\bUSD\b", texto):
+        moneda, conf_moneda = "USD", 0.8  # importes con prefijo de dólares, sin rótulo de moneda
+    if moneda is None or moneda == PESOS:
+        # Sin indicación se asume pesos, con confianza suficiente para no exigir revisión.
+        return {"moneda": (PESOS, conf_moneda or 0.85), "cotizacion": ("1", conf_moneda or 0.85)}
+
+    cotizacion, conf_cotizacion = None, 0.0
+    for patron, confianza in (
+        (r"Cotizaci[oó]n\s*:?\s*\$?[ \t]*([\d.,]*\d)", 0.95),
+        (r"tipo\s+de\s+cambio[^\d\n]*\n?[^\d\n]*?([\d.,]*\d)", 0.8),
+    ):
+        m = re.search(patron, texto, re.IGNORECASE)
+        if m and (valor := normalizar_cotizacion(m.group(1))):
+            cotizacion, conf_cotizacion = valor, confianza
+            break
+    return {"moneda": (moneda, conf_moneda), "cotizacion": (cotizacion, conf_cotizacion)}

@@ -7,12 +7,13 @@ import {
   ESTADOS_DOCUMENTO,
   documentosApi,
   etiquetaEstadoDocumento,
+  formatearEnMoneda,
   type Documento,
   type DocumentoResumen,
   type EstadoDocumento,
   type OperacionDocumento,
 } from "../../api/documentos";
-import { formatearImporte, planCuentasApi, type Cuenta } from "../../api/planCuentas";
+import { planCuentasApi, type Cuenta } from "../../api/planCuentas";
 import { proveedoresApi, type Proveedor } from "../../api/proveedores";
 import { ventasApi, type Venta } from "../../api/ventas";
 import { useAuth } from "../../auth/AuthContext";
@@ -217,7 +218,7 @@ export function DocumentosPage() {
                   <td>{d.operacion === "COMPRA" ? "Compra" : "Venta"}</td>
                   <td className="codigo-cuenta">{d.numero ? `${d.tipo_comprobante?.replace("Factura ", "FC ") ?? ""} ${d.numero}` : "—"}</td>
                   <td>{d.razon_social ?? "—"}</td>
-                  <td className="col-importe">{d.importe_total ? formatearImporte(d.importe_total) : "—"}</td>
+                  <td className="col-importe">{d.importe_total ? formatearEnMoneda(d.importe_total, d.moneda) : "—"}</td>
                   <td>
                     <span className={`etiqueta ${CLASE_ESTADO[d.estado ?? ""] ?? "etiqueta-neutra"}`}>
                       {etiquetaEstadoDocumento(d.estado)}
