@@ -8,6 +8,7 @@ import { etiquetaEstadoCompra, comprasApi, type Compra } from "../../api/compras
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
 import { MonedaComprobante } from "../../components/MonedaComprobante";
+import { ValidacionArca } from "../../components/ValidacionArca";
 
 interface Props {
   idCompra: number;
@@ -21,6 +22,8 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
   const [error, setError] = useState<string | null>(null);
   // CUU-016: documento digital del que surgió el comprobante, si lo hay.
   const [idDocumento, setIdDocumento] = useState<number | null>(null);
+  // CUU-017: se incrementa al validar con ARCA para recargar el comprobante.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     comprasApi
@@ -34,7 +37,7 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
       .listar({ tabla_asociada: "COMPRA", id_registro: idCompra })
       .then((docs) => setIdDocumento(docs[0]?.id_documento ?? null))
       .catch(() => setIdDocumento(null));
-  }, [idCompra]);
+  }, [idCompra, version]);
 
   const importe = (v: string | null) => formatearImporte(v ?? 0);
 
@@ -81,6 +84,16 @@ export function DetalleCompra({ idCompra, onCerrar }: Props) {
               <strong>{importe(compra.importe_total)}</strong>
             </dd>
           </dl>
+
+          <ValidacionArca
+            tabla="COMPRA"
+            id={compra.id_compra}
+            cae={compra.cae}
+            caeVencimiento={compra.cae_vencimiento}
+            estado={compra.estado_fiscal}
+            anulado={compra.estado === "ANULADA"}
+            onValidado={() => setVersion((n) => n + 1)}
+          />
 
           {idDocumento && (
             <p>

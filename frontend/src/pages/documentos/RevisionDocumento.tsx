@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { caeValido } from "../../api/arca";
 import { mensajeDeError } from "../../api/client";
 import type { Cliente } from "../../api/clientes";
 import { CONDICIONES_PAGO, type CondicionPago } from "../../api/compras";
@@ -43,6 +44,8 @@ const EDITABLES = [
   "importe_total",
   "moneda",
   "cotizacion",
+  "cae",
+  "cae_vencimiento",
 ] as const;
 const IMPORTES = new Set(["importe_neto_gravado", "importe_iva", "importe_otros_impuestos", "importe_total"]);
 // Documentos cargados antes de reconocer la moneda: no tienen esos campos y se asumen en pesos.
@@ -121,6 +124,7 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
       if (Number.isNaN(centavos) || centavos < 0) return `El importe de ${campos[c]?.etiqueta ?? c} no es válido.`;
     }
     if (extranjera && !cotizacionValida) return "Indique la cotización para convertir los importes a pesos.";
+    if (valores.cae && !caeValido(valores.cae)) return "El CAE debe tener 14 dígitos.";
     if (pendientes.length) return `Revise los campos marcados: ${pendientes.map((c) => campos[c]?.etiqueta ?? c).join(", ")}.`;
     return null;
   }
@@ -146,6 +150,8 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
       importe_total: importe(valores.importe_total),
       moneda,
       cotizacion: extranjera ? String(cotizacion) : null,
+      cae: valores.cae || null,
+      cae_vencimiento: valores.cae_vencimiento || null,
       campos_revisados: [...revisados],
     };
     setError(null);
@@ -216,8 +222,19 @@ export function RevisionDocumento({ documento, contrapartes, onCerrar, onRegistr
         </select>
       );
     }
-    if (campo === "fecha_emision") {
-      return <input type="date" value={valores[campo]} onChange={(e) => cambiar(campo, e.target.value)} />;
+    if (campo === "fecha_emision" || campo === "cae_vencimiento") {
+      return <input type="date" value={valores[campo] ?? ""} onChange={(e) => cambiar(campo, e.target.value)} />;
+    }
+    if (campo === "cae") {
+      return (
+        <input
+          inputMode="numeric"
+          value={valores[campo] ?? ""}
+          onChange={(e) => cambiar(campo, e.target.value.replace(/D/g, ""))}
+          maxLength={14}
+          placeholder="14 dígitos"
+        />
+      );
     }
     if (campo === "moneda") {
       return (

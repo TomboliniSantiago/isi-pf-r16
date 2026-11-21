@@ -41,6 +41,8 @@ def test_factura_de_compra_completa():
         "importe_total": "1210.00",
         "moneda": "ARS",
         "cotizacion": "1",
+        "cae": "76451234567890",
+        "cae_vencimiento": "2026-11-15",
     }
     assert resultado.validaciones == []
     assert all(c.confianza >= 0.8 for c in resultado.campos.values())
@@ -212,6 +214,8 @@ def test_factura_preimpresa_completa():
         "importe_total": "1210.00",
         "moneda": "ARS",
         "cotizacion": "1",
+        "cae": "76451234567890",
+        "cae_vencimiento": "2026-09-14",
     }
     assert resultado.validaciones == []
     # Rótulos genéricos: el neto y el total quedan para revisar.
@@ -369,6 +373,8 @@ def test_factura_en_dolares_completa():
         "importe_total": "34088.12",
         "moneda": "USD",
         "cotizacion": "1545.5",
+        "cae": "86440858279262",
+        "cae_vencimiento": "2026-11-15",
     }
     assert resultado.validaciones == []
     assert all(c.confianza >= 0.8 for c in resultado.campos.values())
@@ -427,3 +433,55 @@ def test_lectura_por_posicion_junta_rotulos_e_importes():
     """Rótulos e importes escritos por separado (como Microsoft Print to PDF) quedan en el mismo renglón."""
     lectura = MotorPdfTesseract().leer(pdf_por_caracter(factura_en_dolares()), Formato.PDF)
     assert "Importe Total: u$s   34,088.12" in lectura.texto.splitlines()
+
+
+# ---------- CAE y vencimiento (CUU-017) ----------
+
+
+@pytest.mark.parametrize(
+    ("lineas", "cae", "vencimiento", "confianza"),
+    [
+        (["CAE N°: 76451234567890", "Fecha de Vto. de CAE: 15/11/2026"], "76451234567890", "2026-11-15", 0.95),
+        (["C.A.E. : 86394530356192", "VENCIMIENTO : 24/09/2026"], "86394530356192", "2026-09-24", 0.85),
+        (["CAE: 76451234567890   Vto: 14/09/26"], "76451234567890", "2026-09-14", 0.85),
+        # Un vencimiento de pago no es el del CAE.
+        (["CAE: 76451234567890", "Total 1.210,00", "Vencimiento de Pago: 05/11/2026"], "76451234567890", None, 0.0),
+        # Sin 14 dígitos no hay CAE.
+        (["CAE: 7645123456789"], None, None, 0.0),
+        # Rótulos y valores en columnas separadas: el único número suelto de 14 dígitos y la fecha del renglón
+        # siguiente (el código de barras, más largo, no cuenta).
+        (
+            [
+                "3071693224506200086463286812823202611184",
+                "Área de CAE Nro.:",
+                "Defensa del Consumidor: 147   86463286812823",
+                "Fecha Vto. CAE:",
+                "Orientación al Consumidor 148   28/11/2026",
+            ],
+            "86463286812823",
+            "2026-11-28",
+            0.7,
+        ),
+    ],
+)
+def test_cae_y_vencimiento(lineas, cae, vencimiento, confianza):
+    valores, resultado = _campos(lineas)
+    assert (valores["cae"], valores["cae_vencimiento"]) == (cae, vencimiento)
+    assert resultado.campos["cae_vencimiento"].confianza == pytest.approx(confianza)
+
+
+def test_vencimiento_del_cae_invalido_es_error():
+    valores, resultado = _campos(["CAE: 76451234567890", "Fecha de Vto. de CAE: 31/02/2026"])
+    assert valores["cae_vencimiento"] == "31/02/2026"
+    assert [v.codigo for v in resultado.validaciones] == ["cae_vencimiento"]
+
+
+def test_cae_sin_rotulo_al_lado_tiene_confianza_baja():
+    valores, resultado = _campos(["C.A.E.", "Total 1.210,00", "86394530356192", "CBU 0070339820000018207059"])
+    assert valores["cae"] == "86394530356192"
+    assert resultado.campos["cae"].confianza == pytest.approx(0.6)
+
+
+def test_dos_numeros_sueltos_de_14_digitos_no_definen_el_cae():
+    valores, _ = _campos(["C.A.E.", "Total 1.210,00", "86394530356192", "12345678901234"])
+    assert valores["cae"] is None

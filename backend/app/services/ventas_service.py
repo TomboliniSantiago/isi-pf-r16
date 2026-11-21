@@ -35,6 +35,7 @@ from app.models import (
     Cliente,
     CondicionIva,
     EmpresaEmisora,
+    EstadoFiscal,
     EstadoVenta,
     OrigenAsiento,
     Usuario,
@@ -259,7 +260,10 @@ def modificar(db: Session, id_venta: int, datos: VentaIn, actor: Usuario, origen
     emisor, cliente = _validar(db, datos)
     _rechazar_duplicado(db, datos, emisor.id_emisor, excluir=venta.id_venta)
     antes = _instantanea(venta)
+    fiscales = _datos_fiscales(venta)
     _aplicar(venta, datos)
+    if _datos_fiscales(venta) != fiscales:  # CUU-017: la validación con ARCA anterior ya no aplica
+        venta.estado_fiscal = EstadoFiscal.PENDIENTE
     auditoria.registrar(
         db,
         accion="MODIFICACION",
@@ -381,6 +385,8 @@ def _aplicar(venta: Venta, datos: VentaIn) -> None:
     venta.importe_iva = datos.importe_iva
     venta.importe_otros_impuestos = datos.importe_otros_impuestos
     venta.importe_total = datos.importe_total
+    venta.cae = datos.cae
+    venta.cae_vencimiento = datos.cae_vencimiento
 
 
 def _datos_de(venta: Venta, cuentas: CuentasVentaIn) -> VentaIn:
@@ -397,6 +403,8 @@ def _datos_de(venta: Venta, cuentas: CuentasVentaIn) -> VentaIn:
             importe_iva=venta.importe_iva or CERO,
             importe_otros_impuestos=venta.importe_otros_impuestos or CERO,
             importe_total=venta.importe_total or CERO,
+            cae=venta.cae,
+            cae_vencimiento=venta.cae_vencimiento,
             cuentas=cuentas,
             confirmar=True,
         )
@@ -404,6 +412,20 @@ def _datos_de(venta: Venta, cuentas: CuentasVentaIn) -> VentaIn:
         raise ErrorNegocio(
             422, "La venta tiene datos incompletos o inválidos: modifíquela antes de contabilizarla."
         ) from exc
+
+
+def _datos_fiscales(venta: Venta) -> tuple[Any, ...]:
+    """Datos que se validan con ARCA (CUU-017): si cambian, la validación anterior ya no aplica."""
+    return (
+        venta.id_cliente,
+        venta.tipo_comprobante,
+        venta.punto_venta,
+        venta.numero_comprobante,
+        venta.fecha_emision,
+        venta.importe_total,
+        venta.cae,
+        venta.cae_vencimiento,
+    )
 
 
 def _instantanea(venta: Venta) -> dict[str, Any]:
@@ -418,4 +440,7 @@ def _instantanea(venta: Venta) -> dict[str, Any]:
         "otros_impuestos": str(venta.importe_otros_impuestos),
         "total": str(venta.importe_total),
         "estado": venta.estado,
+        "cae": venta.cae,
+        "cae_vencimiento": venta.cae_vencimiento,
+        "estado_fiscal": venta.estado_fiscal,
     }

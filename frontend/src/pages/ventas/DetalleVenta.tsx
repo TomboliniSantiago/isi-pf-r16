@@ -8,6 +8,7 @@ import { etiquetaEstadoVenta, ventasApi, type Venta } from "../../api/ventas";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
 import { MonedaComprobante } from "../../components/MonedaComprobante";
+import { ValidacionArca } from "../../components/ValidacionArca";
 
 interface Props {
   idVenta: number;
@@ -21,6 +22,8 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
   const [error, setError] = useState<string | null>(null);
   // CUU-016: documento digital del que surgió el comprobante, si lo hay.
   const [idDocumento, setIdDocumento] = useState<number | null>(null);
+  // CUU-017: se incrementa al validar con ARCA para recargar el comprobante.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     ventasApi
@@ -34,7 +37,7 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
       .listar({ tabla_asociada: "VENTA", id_registro: idVenta })
       .then((docs) => setIdDocumento(docs[0]?.id_documento ?? null))
       .catch(() => setIdDocumento(null));
-  }, [idVenta]);
+  }, [idVenta, version]);
 
   const importe = (v: string | null) => formatearImporte(v ?? 0);
 
@@ -80,9 +83,17 @@ export function DetalleVenta({ idVenta, onCerrar }: Props) {
             <dd>
               <strong>{importe(venta.importe_total)}</strong>
             </dd>
-            <dt>CAE</dt>
-            <dd>{venta.cae ?? "Sin validar con ARCA"}</dd>
           </dl>
+
+          <ValidacionArca
+            tabla="VENTA"
+            id={venta.id_venta}
+            cae={venta.cae}
+            caeVencimiento={venta.cae_vencimiento}
+            estado={venta.estado_fiscal}
+            anulado={venta.estado === "ANULADA"}
+            onValidado={() => setVersion((n) => n + 1)}
+          />
 
           {idDocumento && (
             <p>

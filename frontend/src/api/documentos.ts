@@ -120,6 +120,9 @@ export interface RegistroDocumento {
   /** Los importes están en esta moneda; si no es pesos, el backend los convierte con la cotización. */
   moneda: Moneda;
   cotizacion: string | null;
+  /** CUU-017: CAE de ARCA y su vencimiento, para validar luego el comprobante. */
+  cae: string | null;
+  cae_vencimiento: string | null;
   campos_revisados: string[];
 }
 
