@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas_asientos import Importe
-from app.schemas_comprobantes import CondicionPago, TipoComprobante
+from app.schemas_comprobantes import Cae, CondicionPago, TipoComprobante
 
 
 class CampoOut(BaseModel):
@@ -101,6 +101,9 @@ class RegistroDocumentoIn(BaseModel):
     # a pesos con la cotización al registrar la compra o venta.
     moneda: Literal["ARS", "USD", "EUR"] = "ARS"
     cotizacion: Decimal | None = Field(default=None, gt=0, max_digits=15, decimal_places=6)
+    # CUU-017: CAE y su vencimiento, para validar luego el comprobante con ARCA.
+    cae: Cae | None = None
+    cae_vencimiento: date | None = None
     # 4.a / 6.a: campos marcados para revisión obligatoria que el usuario revisó.
     campos_revisados: list[str] = Field(default_factory=list)
 

@@ -337,6 +337,8 @@ def _importes(datos: RegistroDocumentoIn, pesos: dict[str, Decimal]) -> dict[str
         "numero_comprobante": datos.numero_comprobante,
         "fecha_emision": datos.fecha_emision,
         "fecha_contable": datos.fecha_contable,
+        "cae": datos.cae,
+        "cae_vencimiento": datos.cae_vencimiento,
         **pesos,
         "confirmar": False,  # borrador: se contabiliza después de revisar el asiento (CUU-001/002)
     }
@@ -358,6 +360,8 @@ def _valores_finales(datos: RegistroDocumentoIn, contraparte: Proveedor | Client
         # compra o venta (moneda, cotización e importes en pesos).
         "moneda": datos.moneda,
         "cotizacion": interprete.normalizar_cotizacion(str(datos.cotizacion or 1)),
+        "cae": datos.cae,
+        "cae_vencimiento": datos.cae_vencimiento.isoformat() if datos.cae_vencimiento else None,
     }
 
 

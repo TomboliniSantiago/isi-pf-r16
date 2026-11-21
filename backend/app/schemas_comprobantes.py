@@ -2,8 +2,12 @@
 
 from decimal import Decimal
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# Código de Autorización Electrónico que otorga ARCA: 14 dígitos (CUU-017).
+Cae = Annotated[str, Field(pattern=r"^\d{14}$", description="CAE de ARCA: 14 dígitos.")]
 
 
 class TipoComprobante(StrEnum):

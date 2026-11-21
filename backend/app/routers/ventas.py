@@ -3,10 +3,12 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.arca.comprobantes import ServicioComprobantes, get_servicio_comprobantes
 from app.db import get_db
 from app.deps import origen_de, requiere_roles, usuario_habilitado
-from app.models import Cliente, EstadoVenta, Rol, Usuario, Venta
+from app.models import Cliente, EstadoFiscal, EstadoVenta, Rol, Usuario, Venta
 from app.schemas_comprobantes import AsientoComprobanteOut, LineaPropuestaOut
+from app.schemas_validaciones import ValidacionArcaOut, validacion_out
 from app.schemas_ventas import (
     ClienteVentaOut,
     CuentasVentaIn,
@@ -14,8 +16,9 @@ from app.schemas_ventas import (
     VentaIn,
     VentaOut,
 )
-from app.services import asientos_service
+from app.services import asientos_service, validaciones_service
 from app.services import ventas_service as servicio
+from app.services.validaciones_service import VENTA
 
 router = APIRouter(prefix="/api/ventas", tags=["Ventas"])
 # Consulta: cualquier usuario con sesión. Registro y anulación: actores de CUU-001.
@@ -57,6 +60,8 @@ def _salidas(db: Session, ventas: list[Venta]) -> list[VentaOut]:
                 importe_otros_impuestos=v.importe_otros_impuestos,
                 importe_total=v.importe_total,
                 cae=v.cae,
+                cae_vencimiento=v.cae_vencimiento,
+                estado_fiscal=v.estado_fiscal or EstadoFiscal.PENDIENTE,
                 estado=v.estado,
                 asiento=AsientoComprobanteOut(
                     id_asiento=asiento.id_asiento,
@@ -141,3 +146,23 @@ def anular(
     id_venta: int, request: Request, actor: Usuario = Depends(puede_editar), db: Session = Depends(get_db)
 ) -> VentaOut:
     return _salidas(db, [servicio.anular(db, id_venta, actor, origen_de(request))])[0]
+
+
+@router.post("/{id_venta}/validar-arca", response_model=ValidacionArcaOut)
+def validar_arca(
+    id_venta: int,
+    request: Request,
+    actor: Usuario = Depends(puede_editar),
+    arca: ServicioComprobantes = Depends(get_servicio_comprobantes),
+    db: Session = Depends(get_db),
+) -> ValidacionArcaOut:
+    """CUU-017: valida la venta con ARCA y devuelve el resultado (también si ARCA no respondió)."""
+    validacion = validaciones_service.validar(db, VENTA, id_venta, arca, actor, origen_de(request))
+    return validacion_out(db, validacion)
+
+
+@router.get("/{id_venta}/validaciones", response_model=list[ValidacionArcaOut])
+def validaciones(
+    id_venta: int, _: Usuario = Depends(usuario_habilitado), db: Session = Depends(get_db)
+) -> list[ValidacionArcaOut]:
+    return [validacion_out(db, v) for v in validaciones_service.historial(db, VENTA, id_venta)]

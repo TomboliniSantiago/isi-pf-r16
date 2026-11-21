@@ -35,6 +35,7 @@ from app.models import (
     Compra,
     CondicionIva,
     EstadoCompra,
+    EstadoFiscal,
     OrigenAsiento,
     Proveedor,
     Usuario,
@@ -270,7 +271,10 @@ def modificar(db: Session, id_compra: int, datos: CompraIn, actor: Usuario, orig
     proveedor = _validar(db, datos)
     _rechazar_duplicado(db, datos, excluir=compra.id_compra)
     antes = _instantanea(compra)
+    fiscales = _datos_fiscales(compra)
     _aplicar(compra, datos)
+    if _datos_fiscales(compra) != fiscales:  # CUU-017: la validación con ARCA anterior ya no aplica
+        compra.estado_fiscal = EstadoFiscal.PENDIENTE
     auditoria.registrar(
         db,
         accion="MODIFICACION",
@@ -390,6 +394,8 @@ def _aplicar(compra: Compra, datos: CompraIn) -> None:
     compra.importe_iva = datos.importe_iva
     compra.importe_otros_impuestos = datos.importe_otros_impuestos
     compra.importe_total = datos.importe_total
+    compra.cae = datos.cae
+    compra.cae_vencimiento = datos.cae_vencimiento
 
 
 def _datos_de(compra: Compra, cuentas: CuentasCompraIn) -> CompraIn:
@@ -406,6 +412,8 @@ def _datos_de(compra: Compra, cuentas: CuentasCompraIn) -> CompraIn:
             importe_iva=compra.importe_iva or CERO,
             importe_otros_impuestos=compra.importe_otros_impuestos or CERO,
             importe_total=compra.importe_total or CERO,
+            cae=compra.cae,
+            cae_vencimiento=compra.cae_vencimiento,
             cuentas=cuentas,
             confirmar=True,
         )
@@ -413,6 +421,20 @@ def _datos_de(compra: Compra, cuentas: CuentasCompraIn) -> CompraIn:
         raise ErrorNegocio(
             422, "La compra tiene datos incompletos o inválidos: modifíquela antes de contabilizarla."
         ) from exc
+
+
+def _datos_fiscales(compra: Compra) -> tuple[Any, ...]:
+    """Datos que se validan con ARCA (CUU-017): si cambian, la validación anterior ya no aplica."""
+    return (
+        compra.id_proveedor,
+        compra.tipo_comprobante,
+        compra.punto_venta,
+        compra.numero_comprobante,
+        compra.fecha_emision,
+        compra.importe_total,
+        compra.cae,
+        compra.cae_vencimiento,
+    )
 
 
 def _instantanea(compra: Compra) -> dict[str, Any]:
@@ -427,4 +449,7 @@ def _instantanea(compra: Compra) -> dict[str, Any]:
         "otros_impuestos": str(compra.importe_otros_impuestos),
         "total": str(compra.importe_total),
         "estado": compra.estado,
+        "cae": compra.cae,
+        "cae_vencimiento": compra.cae_vencimiento,
+        "estado_fiscal": compra.estado_fiscal,
     }

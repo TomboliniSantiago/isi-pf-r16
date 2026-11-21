@@ -6,6 +6,7 @@ import { formatearFechaContable, formatearImporte, planCuentasApi, type Cuenta }
 import { ESTADOS_COMPRA, etiquetaEstadoCompra, comprasApi, type EstadoCompra, type Compra } from "../../api/compras";
 import { useAuth } from "../../auth/AuthContext";
 import { Alerta } from "../../components/Alerta";
+import { EtiquetaEstadoFiscal } from "../../components/ValidacionArca";
 import { AnularCompra } from "./AnularCompra";
 import { DetalleCompra } from "./DetalleCompra";
 import { FormularioCompra } from "./FormularioCompra";
@@ -171,6 +172,7 @@ export function ComprasPage() {
                 <th>Pago</th>
                 <th className="col-importe">Total</th>
                 <th>Estado</th>
+                <th>ARCA</th>
                 <th>Asiento</th>
                 <th className="col-acciones">Acciones</th>
               </tr>
@@ -189,6 +191,9 @@ export function ComprasPage() {
                     <span className={`etiqueta ${CLASE_ESTADO_COMPRA[v.estado ?? ""] ?? "etiqueta-neutra"}`}>
                       {etiquetaEstadoCompra(v.estado)}
                     </span>
+                  </td>
+                  <td>
+                    <EtiquetaEstadoFiscal estado={v.estado_fiscal} />
                   </td>
                   <td className="codigo-cuenta">{v.asiento?.numero_asiento ? `N° ${v.asiento.numero_asiento}` : "—"}</td>
                   <td className="col-acciones">
@@ -224,7 +229,7 @@ export function ComprasPage() {
               ))}
               {!cargando && compras.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="tabla-vacia">
+                  <td colSpan={9} className="tabla-vacia">
                     No hay compras que coincidan con los filtros.
                   </td>
                 </tr>

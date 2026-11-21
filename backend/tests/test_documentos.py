@@ -112,6 +112,9 @@ def _registro(base, **extra):
         "importe_iva": "210.00",
         "importe_otros_impuestos": "0.00",
         "importe_total": "1210.00",
+        # CAE de factura_arca(): coincide con el extraído.
+        "cae": "76451234567890",
+        "cae_vencimiento": "2026-11-15",
     }
     datos.update(extra)
     return datos
@@ -333,6 +336,7 @@ def _registro_en_dolares(base, **extra):
         "importe_total": "34088.12",
         "moneda": "USD",
         "cotizacion": "1545.5",
+        "cae": "86440858279262",
     }
     return _registro(base, **{**datos, **extra})
 

@@ -36,6 +36,8 @@ CAMPOS = (
     "importe_total",
     "moneda",
     "cotizacion",
+    "cae",
+    "cae_vencimiento",
 )
 ETIQUETAS = {
     "cuit": "CUIT",
@@ -50,6 +52,8 @@ ETIQUETAS = {
     "importe_total": "Total",
     "moneda": "Moneda",
     "cotizacion": "Cotización",
+    "cae": "CAE",
+    "cae_vencimiento": "Vencimiento del CAE",
 }
 IMPORTES = ("importe_neto_gravado", "importe_iva", "importe_otros_impuestos", "importe_total")
 PESOS = "ARS"
@@ -109,6 +113,7 @@ def interpretar(
         "importe_otros_impuestos": _otros(plano),
         "importe_total": _total(plano),
         **_moneda_y_cotizacion(plano),
+        **_cae_y_vencimiento(plano),
     }
     encontrados.update(_iva_segun_tipo(plano, encontrados, operacion))
     campos = {
@@ -147,6 +152,17 @@ def validar(valores: dict[str, str | None], hoy: date | None = None) -> list[Val
                         "fecha_futura", "La fecha de emisión es posterior a hoy.", ["fecha_emision"], "advertencia"
                     )
                 )
+
+    vencimiento = valores.get("cae_vencimiento")
+    if vencimiento:
+        try:
+            date.fromisoformat(vencimiento)
+        except ValueError:
+            resultado.append(
+                Validacion(
+                    "cae_vencimiento", f"El vencimiento del CAE {vencimiento} no es válido.", ["cae_vencimiento"]
+                )
+            )
 
     importes = {c: a_decimal(valores.get(c)) for c in IMPORTES}
     neto, iva, otros, total = (importes[c] for c in IMPORTES)
@@ -323,6 +339,11 @@ def _fecha(texto: str) -> tuple[str | None, float]:
     )
     if not m:
         m, confianza = _fecha_generica(texto), 0.6
+    return _fecha_iso(m, confianza)
+
+
+def _fecha_iso(m: re.Match[str] | None, confianza: float) -> tuple[str | None, float]:
+    """La fecha del grupo 1 en formato ISO; si no es una fecha válida, el texto crudo con confianza baja."""
     if not m:
         return None, 0.0
     crudo = re.sub(r"\s+", "", m.group(1))
@@ -331,6 +352,37 @@ def _fecha(texto: str) -> tuple[str | None, float]:
     except ValueError:
         return crudo, 0.2
     return valor.isoformat(), confianza
+
+
+_CAE = r"\bC\.?\s?A\.?\s?E\.?"
+_VTO = r"V(?:to|encimiento)\.?"
+
+
+def _cae_y_vencimiento(texto: str) -> dict[str, tuple[str | None, float]]:
+    """CUU-017: CAE (14 dígitos) y su vencimiento, que vienen en toda factura electrónica."""
+    cae = re.search(_CAE + r"\s*(?:N\s*[°ºo.]?|Nro\.?|N[uú]mero)?\s*:?\s*(\d{14})(?!\d)", texto, re.IGNORECASE)
+    valor_cae, conf_cae = (cae.group(1), 0.95) if cae else (None, 0.0)
+    if cae is None and re.search(_CAE, texto, re.IGNORECASE):
+        # Rótulo y número separados (en otra columna o renglón): el único número suelto de 14 dígitos, que no
+        # sea parte de uno más largo (código de barras, CBU). Confianza baja: queda para revisar.
+        sueltos = set(re.findall(r"(?<!\d)(\d{14})(?!\d)", texto))
+        if len(sueltos) == 1:
+            valor_cae, conf_cae = sueltos.pop(), 0.6
+    vencimiento, confianza = _primero(
+        texto,
+        [
+            # "Fecha de Vto. de CAE: 15/11/2026", "Fecha Vto. Cae: 15/11/2026"
+            (r"(?:Fecha\s+(?:de\s+)?)?" + _VTO + r"\s*(?:del?\s+)?" + _CAE + r"\s*:?\s*" + _FECHA, 0.95),
+            # Vencimiento sin nombrar al CAE, en su mismo renglón o en el siguiente ("CAE: ...", "VTO: ...").
+            (_CAE + r"[^\n]*?\d{14}[ \t]*(?:\n[ \t]*)?(?:Fecha\s+(?:de\s+)?)?" + _VTO + r"\s*:?\s*" + _FECHA, 0.85),
+            # "Fecha Vto. CAE:" con la fecha al final del renglón siguiente (columnas separadas).
+            (r"(?m)" + _VTO + r"\s*(?:del?\s+)?" + _CAE + r"\s*:?[ \t]*\n[^\n]*?" + _FECHA + r"[ \t]*$", 0.7),
+        ],
+    )
+    return {
+        "cae": (valor_cae, conf_cae),
+        "cae_vencimiento": _fecha_iso(vencimiento, confianza),
+    }
 
 
 def _fecha_generica(texto: str) -> re.Match[str] | None:
