@@ -1,3 +1,4 @@
+import type { EstadoFiscal } from "./arca";
 import { api } from "./client";
 
 export type EstadoVenta = "PENDIENTE" | "CONTABILIZADA" | "ANULADA";
@@ -43,6 +44,9 @@ export interface VentaDatos {
   importe_iva: string;
   importe_otros_impuestos: string;
   importe_total: string;
+  /** CUU-017: CAE de ARCA (14 dígitos) y su vencimiento, para validar el comprobante. */
+  cae: string | null;
+  cae_vencimiento: string | null;
   cuentas: CuentasVenta;
   confirmar: boolean;
 }
@@ -65,6 +69,8 @@ export interface Venta {
   importe_otros_impuestos: string | null;
   importe_total: string | null;
   cae: string | null;
+  cae_vencimiento: string | null;
+  estado_fiscal: EstadoFiscal;
   estado: EstadoVenta | null;
   asiento: { id_asiento: number; numero_asiento: number | null; estado: string | null; revertido_por: number | null } | null;
 }

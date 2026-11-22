@@ -1,4 +1,4 @@
-"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 010)."""
+"""Mapeo de las tablas existentes (esquema base + migraciones 001 a 011)."""
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -224,6 +224,19 @@ class EstadoVenta(StrEnum):
     ANULADA = "ANULADA"  # su asiento fue revertido (o nunca se contabilizó)
 
 
+class EstadoFiscal(StrEnum):
+    """Estado de la validación con ARCA de una venta o compra (CUU-017). Independiente del estado contable:
+    no impide contabilizar."""
+
+    PENDIENTE = "PENDIENTE"  # nunca validado, o modificado después de validarse
+    EN_VALIDACION = "EN_VALIDACION"  # consulta a ARCA en curso
+    VALIDO = "VALIDO"  # ARCA lo informa y los datos coinciden
+    INVALIDO = "INVALIDO"  # ARCA informa que el comprobante no existe (4.a)
+    OBSERVADO = "OBSERVADO"  # el CAE estaba vencido a la fecha de emisión (5.a)
+    PENDIENTE_AUDITORIA = "PENDIENTE_AUDITORIA"  # los datos de ARCA difieren de los registrados (6.a)
+    ERROR_INTEGRACION = "ERROR_INTEGRACION"  # ARCA no respondió o respondió con error (3.a): se reintenta
+
+
 class EmpresaEmisora(Base):
     """Esquema base. Solo se lee: la empresa que usa EugenIA (una sola; multiempresa queda fuera del alcance)."""
 
@@ -257,6 +270,9 @@ class Venta(Base):
     importe_total: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     cae: Mapped[str | None] = mapped_column(Unicode(255))
     estado: Mapped[str | None] = mapped_column(Unicode(20))
+    # Migración 011 (CUU-017): vencimiento del CAE y estado de la validación con ARCA.
+    cae_vencimiento: Mapped[date | None] = mapped_column(Date)
+    estado_fiscal: Mapped[str | None] = mapped_column(Unicode(30), default=EstadoFiscal.PENDIENTE)
 
     @property
     def numero(self) -> str:
@@ -295,7 +311,7 @@ class EstadoCompra(StrEnum):
 
 class Compra(Base):
     """Esquema base + migración 008_compras (estado, fecha contable y otros impuestos). CUU-002.
-    No tiene CAE: el CAE lo emite el proveedor y la tabla no lo registra."""
+    Migración 011 (CUU-017): CAE que ARCA otorgó al proveedor, su vencimiento y el estado de la validación."""
 
     __tablename__ = "COMPRA"
 
@@ -315,6 +331,9 @@ class Compra(Base):
     importe_otros_impuestos: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     importe_total: Mapped[Decimal | None] = mapped_column(Numeric(15, 2))
     estado: Mapped[str | None] = mapped_column(Unicode(20))
+    cae: Mapped[str | None] = mapped_column(Unicode(255))
+    cae_vencimiento: Mapped[date | None] = mapped_column(Date)
+    estado_fiscal: Mapped[str | None] = mapped_column(Unicode(30), default=EstadoFiscal.PENDIENTE)
 
     @property
     def numero(self) -> str:
@@ -383,6 +402,26 @@ class DocumentoCampo(Base):
     valor_final: Mapped[str | None] = mapped_column(Unicode(255))
     corregido: Mapped[bool] = mapped_column(Boolean, default=False)
     revisado: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class ValidacionArca(Base):
+    """Cada intento de validar una venta o compra con ARCA (migración 011, CUU-017). Se crea EN_VALIDACION al
+    enviar la consulta y se completa con la respuesta; nunca se borra (historial, CUU-022)."""
+
+    __tablename__ = "VALIDACION_ARCA"
+
+    id_validacion: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tabla_comprobante: Mapped[str] = mapped_column(Unicode(10))  # VENTA / COMPRA
+    id_comprobante: Mapped[int] = mapped_column(Integer)
+    id_usuario: Mapped[int] = mapped_column(Integer, ForeignKey("USUARIO.id_usuario"))
+    fecha_inicio: Mapped[datetime] = mapped_column(DateTime)
+    fecha_respuesta: Mapped[datetime | None] = mapped_column(DateTime)
+    estado: Mapped[str] = mapped_column(Unicode(30))  # EstadoFiscal resultante
+    mensaje: Mapped[str | None] = mapped_column(Unicode(500))
+    # Texto JSON: datos enviados, respuesta de ARCA y diferencias con lo registrado (6.a).
+    consulta: Mapped[str | None] = mapped_column(UnicodeText)
+    respuesta: Mapped[str | None] = mapped_column(UnicodeText)
+    diferencias: Mapped[str | None] = mapped_column(UnicodeText)
 
 
 class AuditoriaLog(Base):

@@ -6,7 +6,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from app.schemas_asientos import Importe
-from app.schemas_comprobantes import AsientoComprobanteOut, CondicionPago, LineaPropuestaOut, TipoComprobante
+from app.schemas_comprobantes import AsientoComprobanteOut, Cae, CondicionPago, LineaPropuestaOut, TipoComprobante
 
 
 class CuentasVentaIn(BaseModel):
@@ -34,6 +34,9 @@ class VentaIn(BaseModel):
     importe_iva: Importe = Decimal("0")
     importe_otros_impuestos: Importe = Decimal("0")
     importe_total: Importe
+    # CUU-017: CAE otorgado por ARCA y su vencimiento, para validar el comprobante.
+    cae: Cae | None = None
+    cae_vencimiento: date | None = None
     cuentas: CuentasVentaIn = Field(default_factory=CuentasVentaIn)
     # False: queda pendiente, sin asiento (6.a). True: se contabiliza (pasos 6-7).
     confirmar: bool = False
@@ -64,6 +67,9 @@ class VentaOut(BaseModel):
     importe_otros_impuestos: Decimal | None
     importe_total: Decimal | None
     cae: str | None
+    cae_vencimiento: date | None
+    # CUU-017: estado de la validación con ARCA (independiente del estado contable).
+    estado_fiscal: str
     estado: str | None
     asiento: AsientoComprobanteOut | None
 

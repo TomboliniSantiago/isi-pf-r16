@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # Ruta del ejecutable de Tesseract si no está en el PATH (ej. C:\Program Files\Tesseract-OCR\tesseract.exe).
     tesseract_cmd: str = ""
 
+    # Validación de comprobantes con ARCA (CUU-017): una consulta EN_VALIDACION sin respuesta pasado este
+    # tiempo se da por interrumpida y se puede reintentar.
+    arca_validacion_vencida_segundos: int = 120
+
     @property
     def sqlalchemy_url(self) -> str:
         if self.database_url:

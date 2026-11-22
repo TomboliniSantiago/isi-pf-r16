@@ -15,6 +15,7 @@ import {
   type Compra,
   type CompraDatos,
 } from "../../api/compras";
+import { caeValido, estadoFiscal } from "../../api/arca";
 import { Alerta } from "../../components/Alerta";
 import { Modal } from "../../components/Modal";
 import { AltaProveedor } from "../proveedores/AltaProveedor";
@@ -61,6 +62,9 @@ export function FormularioCompra({ proveedores, cuentas, compra, onCerrar, onGua
   const [iva, setIva] = useState(compra && Number(compra.importe_iva) ? (compra.importe_iva ?? "") : "");
   const [otros, setOtros] = useState(compra && Number(compra.importe_otros_impuestos) ? (compra.importe_otros_impuestos ?? "") : "");
   const [total, setTotal] = useState(compra?.importe_total ?? "");
+  // CUU-017: CAE de ARCA y su vencimiento, para validar el comprobante.
+  const [cae, setCae] = useState(compra?.cae ?? "");
+  const [caeVencimiento, setCaeVencimiento] = useState(compra?.cae_vencimiento ?? "");
   const [elegidas, setElegidas] = useState<CuentasCompra>({});
   const [propuesta, setPropuesta] = useState<Propuesta | null>(null);
   const [altaProveedor, setAltaProveedor] = useState(false);
@@ -85,6 +89,8 @@ export function FormularioCompra({ proveedores, cuentas, compra, onCerrar, onGua
       importe_iva: sinIva ? "0" : importe(iva),
       importe_otros_impuestos: importe(otros),
       importe_total: importe(total),
+      cae: cae || null,
+      cae_vencimiento: caeVencimiento || null,
       cuentas: cuentasElegidas,
       confirmar,
     };
@@ -95,6 +101,7 @@ export function FormularioCompra({ proveedores, cuentas, compra, onCerrar, onGua
     if (!Number.isInteger(Number(puntoVenta)) || Number(puntoVenta) < 1) return "Indique un punto de venta válido.";
     if (!Number.isInteger(Number(numero)) || Number(numero) < 1) return "Indique el número de comprobante.";
     if (!fechaEmision) return "Indique la fecha de emisión.";
+    if (cae && !caeValido(cae)) return "El CAE debe tener 14 dígitos.";
     for (const [nombre, valor] of [
       ["neto gravado", neto],
       ["IVA", sinIva ? "" : iva],
@@ -285,6 +292,15 @@ export function FormularioCompra({ proveedores, cuentas, compra, onCerrar, onGua
             </tfoot>
           </table>
         </div>
+        {/* CUU-017: la validación con ARCA no impide contabilizar, pero se avisa si falta o no fue exitosa. */}
+        {!bloqueada && compra?.estado_fiscal !== "VALIDO" && (
+          <Alerta tipo="aviso">
+            {compra
+              ? `El comprobante no está validado con ARCA (${estadoFiscal(compra.estado_fiscal).etiqueta.toLowerCase()}).`
+              : "El comprobante todavía no está validado con ARCA."}{" "}
+            Puede contabilizarlo igual, o guardarlo como pendiente y validarlo desde su detalle.
+          </Alerta>
+        )}
         {!bloqueada && (
           <p className="texto-secundario">
             Al confirmar, el asiento se registrará en el Libro Diario y la compra quedará contabilizada.
@@ -370,6 +386,23 @@ export function FormularioCompra({ proveedores, cuentas, compra, onCerrar, onGua
                 </option>
               ))}
             </select>
+          </label>
+        </div>
+
+        <div className="campos-fila">
+          <label className="campo">
+            <span>CAE (opcional)</span>
+            <input
+              inputMode="numeric"
+              value={cae}
+              onChange={(e) => setCae(e.target.value.replace(/D/g, ""))}
+              maxLength={14}
+              placeholder="14 dígitos"
+            />
+          </label>
+          <label className="campo">
+            <span>Vencimiento del CAE (opcional)</span>
+            <input type="date" value={caeVencimiento} onChange={(e) => setCaeVencimiento(e.target.value)} />
           </label>
         </div>
 

@@ -6,6 +6,7 @@ import { formatearFechaContable, formatearImporte, planCuentasApi, type Cuenta }
 import { ESTADOS_VENTA, etiquetaEstadoVenta, ventasApi, type EstadoVenta, type Venta } from "../../api/ventas";
 import { useAuth } from "../../auth/AuthContext";
 import { Alerta } from "../../components/Alerta";
+import { EtiquetaEstadoFiscal } from "../../components/ValidacionArca";
 import { AnularVenta } from "./AnularVenta";
 import { DetalleVenta } from "./DetalleVenta";
 import { FormularioVenta } from "./FormularioVenta";
@@ -171,6 +172,7 @@ export function VentasPage() {
                 <th>Cobro</th>
                 <th className="col-importe">Total</th>
                 <th>Estado</th>
+                <th>ARCA</th>
                 <th>Asiento</th>
                 <th className="col-acciones">Acciones</th>
               </tr>
@@ -189,6 +191,9 @@ export function VentasPage() {
                     <span className={`etiqueta ${CLASE_ESTADO_VENTA[v.estado ?? ""] ?? "etiqueta-neutra"}`}>
                       {etiquetaEstadoVenta(v.estado)}
                     </span>
+                  </td>
+                  <td>
+                    <EtiquetaEstadoFiscal estado={v.estado_fiscal} />
                   </td>
                   <td className="codigo-cuenta">{v.asiento?.numero_asiento ? `N° ${v.asiento.numero_asiento}` : "—"}</td>
                   <td className="col-acciones">
@@ -224,7 +229,7 @@ export function VentasPage() {
               ))}
               {!cargando && ventas.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="tabla-vacia">
+                  <td colSpan={9} className="tabla-vacia">
                     No hay ventas que coincidan con los filtros.
                   </td>
                 </tr>
